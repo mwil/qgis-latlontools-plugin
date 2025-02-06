@@ -97,10 +97,10 @@ class ToMGRSAlgorithm(QgsProcessingAlgorithm):
         for cnt, feature in enumerate(iterator):
             if feedback.isCanceled():
                 break
-            pt = feature.geometry().asPoint()
-            if layerCRS != epsg4326:
-                pt = transform.transform(pt)
             try:
+                pt = feature.geometry().asPoint()
+                if layerCRS != epsg4326:
+                    pt = transform.transform(pt)
                 msg = mgrs.toMgrs(pt.y(), pt.x(), precision)
             except Exception:
                 msg = ''
