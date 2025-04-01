@@ -13,7 +13,7 @@ import enum
 try:
     import h3
     v = h3.versions()
-    if v['python'][0] == '3':
+    if int(v['python'][0]) >= 4:
         H3_INSTALLED = True
     else:
         H3_INSTALLED = False

@@ -170,7 +170,7 @@ class CopyLatLonTool(QgsMapToolEmitPoint):
                 transform = QgsCoordinateTransform(canvasCRS, epsg4326, QgsProject.instance())
                 pt4326 = transform.transform(pt.x(), pt.y())
             if H3_INSTALLED:
-                msg = h3.geo_to_h3(pt4326.y(), pt4326.x(), settings.captureH3Precision)
+                msg = h3.latlng_to_cell(pt4326.y(), pt4326.x(), settings.captureH3Precision)
                 if msg == 0:
                     msg = None
             else:

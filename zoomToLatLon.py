@@ -189,10 +189,10 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
 
             if self.settings.zoomToProjIsH3():
                 # An H3 coordinate has been selected. 
-                if not h3.h3_is_valid(text):
+                if not h3.is_valid_cell(text):
                     raise ValueError(tr('Invalid H3 Coordinate'))
-                (lat, lon) = h3.h3_to_geo(text)
-                coords = h3.h3_to_geo_boundary(text)
+                (lat, lon) = h3.cell_to_latlng(text)
+                coords = h3.cell_to_boundary(text)
                 pts = []
                 for p in coords:
                     pt = QgsPointXY(p[1], p[0])
