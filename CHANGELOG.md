@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 
+
+### Fixed
+- 
+
+### Changed
+- 
+
+---
+
+## [3.8.0] - 2025-08-30
+
+### Added
 - Changelog file to track plugin improvements and fixes
 
 ### Fixed
