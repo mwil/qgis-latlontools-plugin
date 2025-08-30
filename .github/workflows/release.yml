@@ -1,0 +1,170 @@
+name: Create Plugin Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v3.7.5, v3.8.0
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for changelog generation
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install markdown
+    
+    - name: Extract version from tag
+      id: version
+      run: |
+        # Extract version from git tag (remove 'v' prefix)
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        echo "Release version: $VERSION"
+    
+    - name: Update metadata.txt with release version
+      run: |
+        # Update version in metadata.txt
+        sed -i "s/^version=.*/version=${{ steps.version.outputs.version }}/" metadata.txt
+        echo "Updated metadata.txt:"
+        grep "^version=" metadata.txt
+    
+    - name: Update CHANGELOG.md for release
+      run: |
+        # Update changelog header to mark as released
+        TODAY=$(date +%Y-%m-%d)
+        sed -i "s/## \[Unreleased\]/## [${{ steps.version.outputs.version }}] - $TODAY/" CHANGELOG.md
+        
+        # Add new Unreleased section for future changes
+        sed -i "/## \[${{ steps.version.outputs.version }}\]/i## [Unreleased]\n\n### Added\n- \n\n### Fixed\n- \n\n### Changed\n- \n\n---\n" CHANGELOG.md
+    
+    - name: Build translations
+      run: |
+        # Build translation files (.qm from .ts)
+        if command -v lrelease >/dev/null 2>&1; then
+          find i18n -name "*.ts" -exec lrelease {} \;
+        else
+          echo "Warning: lrelease not available, translations not built"
+        fi
+    
+    - name: Generate documentation
+      run: |
+        # Generate HTML documentation
+        cp helphead.html index.html
+        python -m markdown -x extra readme.md >> index.html
+        echo '</body>' >> index.html
+    
+    - name: Create plugin package
+      run: |
+        PLUGIN_NAME="latlontools"
+        VERSION="${{ steps.version.outputs.version }}"
+        PACKAGE_NAME="${PLUGIN_NAME}-${VERSION}"
+        
+        # Create staging directory
+        mkdir -p dist/$PLUGIN_NAME
+        
+        # Copy Python files
+        cp *.py dist/$PLUGIN_NAME/
+        
+        # Copy essential files
+        cp metadata.txt icon.png LICENSE dist/$PLUGIN_NAME/
+        
+        # Copy directories
+        cp -r ui dist/$PLUGIN_NAME/
+        cp -r images dist/$PLUGIN_NAME/
+        cp -r i18n dist/$PLUGIN_NAME/
+        cp -r doc dist/$PLUGIN_NAME/
+        
+        # Copy generated documentation
+        cp index.html dist/$PLUGIN_NAME/
+        
+        # Copy README and other docs
+        cp readme.md dist/$PLUGIN_NAME/
+        cp PLUGIN_ENHANCEMENTS_README.md dist/$PLUGIN_NAME/
+        
+        # Create zip file
+        cd dist
+        zip -r "${PACKAGE_NAME}.zip" $PLUGIN_NAME/
+        cd ..
+        
+        # Verify package contents
+        echo "Package contents:"
+        unzip -l "dist/${PACKAGE_NAME}.zip" | head -20
+        
+        echo "package_path=dist/${PACKAGE_NAME}.zip" >> $GITHUB_ENV
+        echo "package_name=${PACKAGE_NAME}.zip" >> $GITHUB_ENV
+    
+    - name: Generate release notes from CHANGELOG
+      id: release_notes
+      run: |
+        # Extract release notes for this version from CHANGELOG
+        VERSION="${{ steps.version.outputs.version }}"
+        
+        # Get content between this version and the next version/end
+        awk "/^## \[$VERSION\]/,/^## \[/{if(/^## \[/ && !/^## \[$VERSION\]/) exit; if(!/^## \[$VERSION\]/) print}" CHANGELOG.md > release_notes.md
+        
+        # Clean up the release notes
+        sed -i '/^$/N;/^\n$/d' release_notes.md  # Remove empty lines
+        
+        echo "Generated release notes:"
+        cat release_notes.md
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        release_name: "Lat Lon Tools v${{ steps.version.outputs.version }}"
+        body_path: release_notes.md
+        draft: false
+        prerelease: false
+    
+    - name: Upload plugin package
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ env.package_path }}
+        asset_name: ${{ env.package_name }}
+        asset_content_type: application/zip
+    
+    - name: Commit updated files
+      run: |
+        # Commit the updated metadata.txt and CHANGELOG.md
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        git add metadata.txt CHANGELOG.md
+        git commit -m "chore: Release v${{ steps.version.outputs.version }} - update metadata and changelog" || exit 0
+        git push origin HEAD:main
+    
+    - name: Create summary
+      run: |
+        echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Package:** ${{ env.package_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Size:** $(ls -lh ${{ env.package_path }} | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Package Contents" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        unzip -l ${{ env.package_path }} | head -15 >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📝 Release Notes" >> $GITHUB_STEP_SUMMARY
+        cat release_notes.md >> $GITHUB_STEP_SUMMARY

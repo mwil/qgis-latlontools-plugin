@@ -1,0 +1,162 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 3.7.5)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release'
+        required: false
+        default: false
+        type: boolean
+      create_tag:
+        description: 'Create git tag'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  manual-release:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Validate version format
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)?$'; then
+          echo "Error: Version must follow semantic versioning (e.g., 3.7.5 or 3.8.0-beta1)"
+          exit 1
+        fi
+        echo "Version format valid: $VERSION"
+    
+    - name: Check if tag exists
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        TAG="v$VERSION"
+        if git tag -l | grep -q "^$TAG$"; then
+          echo "Error: Tag $TAG already exists"
+          exit 1
+        fi
+        echo "Tag $TAG is available"
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install markdown
+    
+    - name: Create tag
+      if: github.event.inputs.create_tag == 'true'
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        TAG="v$VERSION"
+        
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        git tag -a "$TAG" -m "Release version $VERSION"
+        git push origin "$TAG"
+        
+        echo "Created and pushed tag: $TAG"
+    
+    - name: Update metadata.txt
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        sed -i "s/^version=.*/version=$VERSION/" metadata.txt
+        echo "Updated metadata.txt to version: $VERSION"
+    
+    - name: Update CHANGELOG.md
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        TODAY=$(date +%Y-%m-%d)
+        
+        # Update unreleased section to released
+        sed -i "s/## \[Unreleased\]/## [$VERSION] - $TODAY/" CHANGELOG.md
+        
+        # Add new unreleased section
+        sed -i "/## \[$VERSION\]/i## [Unreleased]\n\n### Added\n- \n\n### Fixed\n- \n\n### Changed\n- \n\n---\n" CHANGELOG.md
+    
+    - name: Build plugin package
+      run: |
+        PLUGIN_NAME="latlontools"
+        VERSION="${{ github.event.inputs.version }}"
+        PACKAGE_NAME="${PLUGIN_NAME}-${VERSION}"
+        
+        # Create staging directory
+        mkdir -p dist/$PLUGIN_NAME
+        
+        # Copy all plugin files
+        cp *.py dist/$PLUGIN_NAME/
+        cp metadata.txt icon.png LICENSE dist/$PLUGIN_NAME/
+        cp -r ui images i18n doc dist/$PLUGIN_NAME/
+        
+        # Generate documentation
+        cp helphead.html index.html
+        python -m markdown -x extra readme.md >> index.html
+        echo '</body>' >> index.html
+        cp index.html dist/$PLUGIN_NAME/
+        
+        # Copy documentation files
+        cp readme.md PLUGIN_ENHANCEMENTS_README.md dist/$PLUGIN_NAME/
+        
+        # Create zip
+        cd dist
+        zip -r "${PACKAGE_NAME}.zip" $PLUGIN_NAME/
+        cd ..
+        
+        echo "package_path=dist/${PACKAGE_NAME}.zip" >> $GITHUB_ENV
+        echo "package_name=${PACKAGE_NAME}.zip" >> $GITHUB_ENV
+    
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        VERSION="${{ github.event.inputs.version }}"
+        awk "/^## \[$VERSION\]/,/^## \[/{if(/^## \[/ && !/^## \[$VERSION\]/) exit; if(!/^## \[$VERSION\]/) print}" CHANGELOG.md > release_notes.md
+        sed -i '/^$/N;/^\n$/d' release_notes.md
+        
+        echo "Release notes generated:"
+        cat release_notes.md
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      id: create_release
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: "v${{ github.event.inputs.version }}"
+        release_name: "Lat Lon Tools v${{ github.event.inputs.version }}"
+        body_path: release_notes.md
+        draft: false
+        prerelease: ${{ github.event.inputs.prerelease }}
+    
+    - name: Upload plugin package
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ${{ env.package_path }}
+        asset_name: ${{ env.package_name }}
+        asset_content_type: application/zip
+    
+    - name: Commit updated files
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        git add metadata.txt CHANGELOG.md
+        git commit -m "chore: Release v${{ github.event.inputs.version }} - update metadata and changelog"
+        git push origin main

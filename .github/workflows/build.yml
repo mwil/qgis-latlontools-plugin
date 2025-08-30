@@ -1,0 +1,121 @@
+name: Build and Test Plugin
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggers
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install markdown pytest
+    
+    - name: Run tests
+      run: |
+        # Run unit tests if they exist
+        if [ -d "tests/" ]; then
+          python -m pytest tests/ -v
+        else
+          echo "No tests directory found, skipping tests"
+        fi
+    
+    - name: Build plugin package (development)
+      run: |
+        PLUGIN_NAME="latlontools"
+        COMMIT_SHA=$(git rev-parse --short HEAD)
+        VERSION=$(grep "^version=" metadata.txt | cut -d'=' -f2)
+        PACKAGE_NAME="${PLUGIN_NAME}-${VERSION}-dev-${COMMIT_SHA}"
+        
+        # Create staging directory
+        mkdir -p dist/$PLUGIN_NAME
+        
+        # Copy Python files
+        cp *.py dist/$PLUGIN_NAME/
+        
+        # Copy essential files
+        cp metadata.txt icon.png LICENSE dist/$PLUGIN_NAME/
+        
+        # Copy directories
+        cp -r ui dist/$PLUGIN_NAME/
+        cp -r images dist/$PLUGIN_NAME/
+        cp -r i18n dist/$PLUGIN_NAME/
+        cp -r doc dist/$PLUGIN_NAME/
+        
+        # Generate documentation
+        cp helphead.html index.html
+        python -m markdown -x extra readme.md >> index.html
+        echo '</body>' >> index.html
+        cp index.html dist/$PLUGIN_NAME/
+        
+        # Copy documentation
+        cp readme.md dist/$PLUGIN_NAME/
+        cp PLUGIN_ENHANCEMENTS_README.md dist/$PLUGIN_NAME/
+        
+        # Create zip file
+        cd dist
+        zip -r "${PACKAGE_NAME}.zip" $PLUGIN_NAME/
+        cd ..
+        
+        echo "Development package created: ${PACKAGE_NAME}.zip"
+        echo "package_name=${PACKAGE_NAME}.zip" >> $GITHUB_ENV
+    
+    - name: Upload development build
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ env.package_name }}
+        path: dist/${{ env.package_name }}
+        retention-days: 30
+    
+    - name: Build summary
+      run: |
+        echo "## 🔨 Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Package:** ${{ env.package_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Size:** $(ls -lh dist/${{ env.package_name }} | awk '{print $5}')" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📁 Artifact" >> $GITHUB_STEP_SUMMARY
+        echo "Development build available as GitHub Actions artifact for 30 days." >> $GITHUB_STEP_SUMMARY
+        
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install linting tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 pylint
+    
+    - name: Run flake8
+      run: |
+        # Run flake8 with relaxed settings for QGIS plugins
+        flake8 --max-line-length=120 --ignore=E402,W503 *.py || true
+    
+    - name: Run pylint
+      run: |
+        # Run pylint with relaxed settings, don't fail build on warnings
+        pylint --disable=all --enable=E *.py || true

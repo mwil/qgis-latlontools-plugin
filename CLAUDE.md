@@ -25,6 +25,87 @@ This is the "Lat Lon Tools" plugin for QGIS, providing comprehensive coordinate 
 - Plugin Reloader tool is available for development - use this to reload plugin changes without restarting QGIS
 - After deployment with `make deploy`, use Plugin Reloader to refresh the plugin
 
+## Release Management
+
+### Automated GitHub Actions Workflows
+
+The plugin uses GitHub Actions for automated building, testing, and releasing:
+
+#### 1. Development Builds (`build.yml`)
+**Triggers**: Push to `main`/`develop`, Pull Requests, Manual dispatch
+- Builds plugin package for testing
+- Runs linting (flake8, pylint)
+- Creates development artifacts (30-day retention)
+- Package format: `latlontools-{version}-dev-{commit}.zip`
+
+#### 2. Automatic Releases (`release.yml`) 
+**Trigger**: Git tags matching `v*` pattern (e.g., `v3.7.5`)
+- Automatically updates `metadata.txt` with release version
+- Updates `CHANGELOG.md` with release date
+- Builds complete plugin package
+- Creates GitHub release with downloadable zip
+- Package format: `latlontools-{version}.zip`
+
+#### 3. Manual Releases (`manual-release.yml`)
+**Trigger**: Manual GitHub Actions dispatch
+- Allows creating releases without pushing tags
+- Input validation for semantic versioning
+- Optional pre-release marking
+- Same build and packaging process as automatic releases
+
+### Release Process
+
+#### Option A: Tag-based Release (Recommended)
+```bash
+# 1. Ensure CHANGELOG.md has [Unreleased] section with changes
+# 2. Create and push a version tag
+git tag v3.7.5
+git push origin v3.7.5
+
+# 3. GitHub Actions will automatically:
+#    - Update metadata.txt to version 3.7.5
+#    - Update CHANGELOG.md with release date  
+#    - Build and package plugin
+#    - Create GitHub release with downloadable zip
+#    - Commit updated files back to main branch
+```
+
+#### Option B: Manual Release
+1. Go to GitHub Actions → "Manual Release" workflow
+2. Click "Run workflow"
+3. Enter version (e.g., `3.7.5`)
+4. Choose options (pre-release, create tag)
+5. Run the workflow
+
+### Package Structure
+Released zip files contain:
+```
+latlontools-3.7.5.zip
+└── latlontools/
+    ├── *.py                    # All Python modules
+    ├── metadata.txt            # Updated with release version
+    ├── icon.png, LICENSE       # Plugin assets
+    ├── ui/                     # Qt UI files
+    ├── images/                 # Icons and graphics
+    ├── i18n/                   # Translations (.qm files)
+    ├── doc/                    # Documentation images
+    ├── index.html              # Generated HTML docs
+    ├── readme.md               # Main README
+    └── PLUGIN_ENHANCEMENTS_README.md  # Feature documentation
+```
+
+### Version Management
+- **metadata.txt**: Automatically updated by release workflows
+- **CHANGELOG.md**: Uses "Keep a Changelog" format with [Unreleased] sections
+- **Semantic Versioning**: Uses `major.minor.patch` format (e.g., 3.7.5)
+- **Development versions**: Marked as `-dev` in metadata.txt
+
+### QGIS Plugin Repository Integration
+1. Download release zip from GitHub Releases page
+2. Extract and test plugin locally using `make deploy`
+3. Submit to QGIS Plugin Repository manually
+4. The `metadata.txt` will already have correct version from automated build
+
 ## Architecture
 
 ### Main Components
