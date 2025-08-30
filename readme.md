@@ -2,6 +2,30 @@
 
 ***Lat Lon Tools*** makes it easy to capture, zoom to coordinates, convert coordinates in text fields into new point layers, export point geometry into text fields, and interact with other on-line mapping tools. It adds MGRS, Standard UTM, UPS, Geohash, GEOREF, Plus Code (Open Location Code), WKT, EWKT, JSON, and ECEF coordinate support to QGIS. When working with **Google Earth**, **Google Maps** or other on-line mapping tools, coordinates are specified in the order of 'Latitude, Longitude'. By default ***Lat Lon Tools*** uses the standard Google Map format, but is very flexible and can use virtually any projection and coordinate format for input and output. The following tools are available in ***Lat Lon Tools***.
 
+## 🚀 Enhanced Features
+
+This fork includes significant enhancements that make coordinate handling more intuitive and powerful:
+
+### **Smart Auto-Detect Mode**
+Automatically detects and parses **12+ coordinate formats** without requiring format specification:
+- **WKT/EWKT/WKB**, **MGRS**, **UTM/UPS**, **Plus Codes**, **Geohash**, **Maidenhead**, **H3**, **GeoJSON**, **DMS**, and **Decimal Degrees**
+- Priority-based parsing ensures accurate format recognition
+- Configurable coordinate order preferences for ambiguous inputs
+
+### **Enhanced User Experience**  
+- **Text Preservation**: Input text is preserved when switching coordinate order (X,Y ↔ Y,X)
+- **Settings Persistence**: All preferences automatically saved across QGIS sessions
+- **Improved Zoom**: Actually zooms the map with intelligent scale selection, not just marker placement
+
+### **Professional Development Workflow**
+- **Automated Releases**: GitHub Actions for seamless version management and distribution
+- **Comprehensive Testing**: Unit, integration, and validation test suites
+- **Modular Architecture**: Clean separation of enhancements for maintainability
+
+**📖 [View Complete Enhancement Documentation](PLUGIN_ENHANCEMENTS_README.md)**
+
+---
+
 <div style="text-align:center"><img src="doc/menu.jpg" alt="Lat Lon Tools Plugin"></div>
 
 Here are the expanded ***Copy Extents to Clipboard*** menu items.
