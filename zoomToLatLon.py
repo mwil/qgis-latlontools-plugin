@@ -75,6 +75,7 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
         if H3_INSTALLED:
             a = self.crsmenu.addAction(tr("H3"))
             a.setData('h3')
+        # Enhanced functionality added via plugin_enhancements module
         self.crsButton.setMenu(self.crsmenu)
         self.crsButton.triggered.connect(self.crsTriggered)
         self.lltools = lltools

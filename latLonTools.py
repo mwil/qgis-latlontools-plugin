@@ -92,6 +92,17 @@ class LatLonTools:
 
         self.zoomToDialog = ZoomToLatLon(self, self.iface, self.iface.mainWindow())
         self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.zoomToDialog)
+        
+        # Initialize and apply plugin enhancements after all dialogs are created
+        try:
+            from .plugin_enhancements import PluginEnhancements
+            self._enhancements = PluginEnhancements(self, self.iface)
+            self._enhancements.initialize_enhancements()
+            self._enhancements.enhance_zoom_dialog(self.zoomToDialog)
+        except ImportError as e:
+            # Fallback if enhancements can't be loaded
+            print(f"Warning: Could not load plugin enhancements: {e}")
+            self._enhancements = None
         self.zoomToDialog.hide()
 
         # Add Interface for Multi point zoom
@@ -248,39 +259,44 @@ class LatLonTools:
 
     def unload(self):
         '''Unload LatLonTools from the QGIS interface'''
-        self.zoomToDialog.removeMarker()
-        self.multiZoomDialog.removeMarkers()
-        if self.mapTool:
-            self.canvas.unsetMapTool(self.mapTool)
-        if self.showMapTool:
-            self.canvas.unsetMapTool(self.showMapTool)
-        self.iface.removePluginMenu('Lat Lon Tools', self.copyAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.copyExtentsAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.externMapAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.zoomToAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.multiZoomToAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.convertCoordinatesAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.conversionsAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.settingsAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.helpAction)
-        self.iface.removePluginMenu('Lat Lon Tools', self.digitizeAction)
-        self.iface.removeDockWidget(self.zoomToDialog)
-        self.iface.removeDockWidget(self.multiZoomDialog)
-
-        # Remove Toolbar Icons
-        self.iface.removeToolBarIcon(self.copyAction)
-        self.iface.removeToolBarIcon(self.copyExtentToolbar)
-        self.iface.removeToolBarIcon(self.zoomToAction)
-        self.iface.removeToolBarIcon(self.externMapAction)
-        self.iface.removeToolBarIcon(self.multiZoomToAction)
-        self.iface.removeToolBarIcon(self.convertCoordinatesAction)
-        self.iface.removeToolBarIcon(self.digitizeAction)
-        del self.toolbar
+        # Use enhanced cleanup functionality if available
+        if hasattr(self, '_enhancements') and self._enhancements:
+            self._enhancements.safe_unload()
+        else:
+            # Fallback to basic cleanup if enhancements not available
+            try:
+                self.zoomToDialog.removeMarker()
+                self.multiZoomDialog.removeMarkers()
+                if self.mapTool:
+                    self.canvas.unsetMapTool(self.mapTool)
+                if self.showMapTool:
+                    self.canvas.unsetMapTool(self.showMapTool)
+                self.iface.removePluginMenu('Lat Lon Tools', self.copyAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.copyExtentsAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.externMapAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.zoomToAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.multiZoomToAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.convertCoordinatesAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.conversionsAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.settingsAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.helpAction)
+                self.iface.removePluginMenu('Lat Lon Tools', self.digitizeAction)
+                self.iface.removeDockWidget(self.zoomToDialog)
+                self.iface.removeDockWidget(self.multiZoomDialog)
+                self.iface.removeToolBarIcon(self.copyAction)
+                self.iface.removeToolBarIcon(self.copyExtentToolbar)
+                self.iface.removeToolBarIcon(self.zoomToAction)
+                self.iface.removeToolBarIcon(self.externMapAction)
+                self.iface.removeToolBarIcon(self.multiZoomToAction)
+                self.iface.removeToolBarIcon(self.convertCoordinatesAction)
+                self.iface.removeToolBarIcon(self.digitizeAction)
+                del self.toolbar
+                if self.convertCoordinateDialog:
+                    self.iface.removeDockWidget(self.convertCoordinateDialog)
+                    self.convertCoordinateDialog = None
+            except Exception:
+                pass  # Ignore errors during fallback cleanup
         
-        if self.convertCoordinateDialog:
-            self.iface.removeDockWidget(self.convertCoordinateDialog)
-            self.convertCoordinateDialog = None
-
         self.zoomToDialog = None
         self.multiZoomDialog = None
         self.settingsDialog = None
@@ -445,8 +461,24 @@ class LatLonTools:
         transform = QgsCoordinateTransform(src_crs, canvas_crs, QgsProject.instance())
         x, y = transform.transform(float(lon), float(lat))
 
-        rect = QgsRectangle(x, y, x, y)
-        self.canvas.setExtent(rect)
+        # Center the map on the point and zoom appropriately
+        center_point = QgsPointXY(x, y)
+        
+        # Get current scale to determine appropriate zoom level
+        current_scale = self.canvas.scale()
+        
+        # If current scale is very large (zoomed out), zoom to a reasonable level
+        # If already zoomed in, just center without changing scale too much
+        if current_scale > 100000:  # Very zoomed out
+            target_scale = 50000   # Zoom to 1:50,000 scale
+        elif current_scale > 50000:  # Moderately zoomed out  
+            target_scale = 25000   # Zoom to 1:25,000 scale
+        else:  # Already zoomed in, just center
+            target_scale = current_scale
+        
+        # Center and zoom to the target scale
+        self.canvas.zoomScale(target_scale)
+        self.canvas.setCenter(center_point)
 
         pt = QgsPointXY(x, y)
         self.highlight(pt)

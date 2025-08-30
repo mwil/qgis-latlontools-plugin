@@ -1,6 +1,16 @@
 PLUGINNAME = latlontools
-PLUGINS = "$(HOME)"/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/$(PLUGINNAME)
-PY_FILES = __init__.py captureCoordinate.py captureExtent.py coordinateConverter.py copyLatLonTool.py digitizer.py ecef.py field2geom.py geohash.py geom2field.py geom2wkt.py georef.py latLonFunctions.py latLonTools.py latLonToolsProcessing.py maidenhead.py mapProviders.py mgrs.py mgrstogeom.py multizoom.py olc.py pluscodes.py provider.py settings.py showOnMapTool.py tomgrs.py ups.py util.py utm.py wkt2layers.py zoomToLatLon.py
+
+# Detect OS and set appropriate plugin directory
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    PLUGINS = "$(HOME)"/Library/Application\ Support/QGIS/QGIS3/profiles/default/python/plugins/$(PLUGINNAME)
+    PYTHON = python3
+else
+    PLUGINS = "$(HOME)"/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/$(PLUGINNAME)
+    PYTHON = python
+endif
+
+PY_FILES = __init__.py captureCoordinate.py captureExtent.py coordinateConverter.py copyLatLonTool.py digitizer.py ecef.py enhanced_settings.py field2geom.py geohash.py geom2field.py geom2wkt.py georef.py latLonFunctions.py latLonTools.py latLonToolsProcessing.py maidenhead.py mapProviders.py mgrs.py mgrstogeom.py multizoom.py olc.py pluscodes.py plugin_cleanup.py plugin_enhancements.py provider.py settings.py showOnMapTool.py smart_parser.py text_preservation.py tomgrs.py ups.py util.py utm.py wkt2layers.py zoomToLatLon.py
 EXTRAS = metadata.txt icon.png LICENSE
 
 deploy:
@@ -14,6 +24,40 @@ deploy:
 	cp -vfr ui $(PLUGINS)
 	cp -vfr doc $(PLUGINS)
 	cp -vf helphead.html index.html
-	python -m markdown -x extra readme.md >> index.html
+	if [ -d .venv ]; then \
+		source .venv/bin/activate && $(PYTHON) -m markdown -x extra readme.md >> index.html; \
+	else \
+		$(PYTHON) -m markdown -x extra readme.md >> index.html; \
+	fi
 	echo '</body>' >> index.html
 	cp -vf index.html $(PLUGINS)/index.html
+
+# Test commands
+test: 
+	$(PYTHON) run_tests.py
+
+test-unit:
+	$(PYTHON) run_tests.py --type unit
+
+test-validation:
+	$(PYTHON) run_tests.py --type validation
+
+test-verbose:
+	$(PYTHON) run_tests.py --verbose
+
+# Run specific comprehensive test suites
+test-flipping:
+	$(PYTHON) tests/validation/test_coordinate_flipping_comprehensive.py
+
+test-realworld:
+	$(PYTHON) tests/validation/test_real_world_coordinate_scenarios.py
+
+test-comprehensive: test-flipping test-realworld
+	@echo "🎉 Comprehensive coordinate flipping tests completed"
+
+# Clean up test artifacts
+test-clean:
+	find tests/ -name "*.pyc" -delete
+	find tests/ -name "__pycache__" -type d -exec rm -rf {} +
+
+.PHONY: test test-unit test-validation test-verbose test-flipping test-realworld test-comprehensive test-clean

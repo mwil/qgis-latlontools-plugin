@@ -236,10 +236,10 @@ class SettingsWidget(QDialog, FORM_CLASS):
         self.captureUpsFormatComboBox.addItems(['Z 2426773mE 1530125mN', 'Z2426773E1530125N'])
 
         ### ZOOM TO SETTINGS ###
-        if H3_INSTALLED:
-            self.zoomToProjectionComboBox.addItems([tr('WGS 84 (Latitude & Longitude) / Auto Detect Format'), tr('Project CRS'), tr('Custom CRS'), tr('MGRS'), tr('Plus Codes (Open Location Code)'), tr('Standard UTM'),tr('Geohash'),tr('Maidenhead Grid'),'H3'])
-        else:
-            self.zoomToProjectionComboBox.addItems([tr('WGS 84 (Latitude & Longitude) / Auto Detect Format'), tr('Project CRS'), tr('Custom CRS'), tr('MGRS'), tr('Plus Codes (Open Location Code)'), tr('Standard UTM'),tr('Geohash'),tr('Maidenhead Grid')])
+        # Enhanced with plugin enhancements module
+        from .plugin_enhancements import PluginEnhancements
+        self._enhancements = PluginEnhancements(None, iface)
+        self._settings_manager = self._enhancements.enhance_settings_dialog(self)
         self.zoomToProjectionSelectionWidget.setCrs(epsg4326)
         self.zoomToCoordOrderComboBox.addItems([tr('Lat, Lon (Y,X) - Google Map Order'), tr('Lon, Lat (X,Y) Order')])
         self.zoomToProjectionComboBox.activated.connect(self.setEnabled)
@@ -415,6 +415,7 @@ class SettingsWidget(QDialog, FORM_CLASS):
         self.zoomToProjection = int(qset.value('/LatLonTools/ZoomToCoordType', 0))
         if not H3_INSTALLED and self.zoomToProjection == self.ZoomProjectionTypeH3:
             self.zoomToProjection = 0
+            
         self.persistentMarker = int(qset.value('/LatLonTools/PersistentMarker', Qt.Checked))
         self.showGrid = int(qset.value('/LatLonTools/ShowGrid', Qt.Checked))
         self.zoomToCustomCrsAuthId = qset.value('/LatLonTools/ZoomToCustomCrsId', 'EPSG:4326')
@@ -687,6 +688,7 @@ class SettingsWidget(QDialog, FORM_CLASS):
 
         ### ZOOM TO SETTINGS ###
         self.zoomToProjectionComboBox.setCurrentIndex(self.zoomToProjection)
+        
         if self.zoomToCustomCrsAuthId == 'EPSG:4326':
             self.zoomToProjectionSelectionWidget.setCrs(epsg4326)
         else:
@@ -908,6 +910,7 @@ class SettingsWidget(QDialog, FORM_CLASS):
         if self.zoomToProjection == self.ProjectionTypeMaidenhead:
             return True
         return False
+
 
     def multiZoomToProjIsMGRS(self):
         if self.multiZoomToProjection == 3:  # MGRS
