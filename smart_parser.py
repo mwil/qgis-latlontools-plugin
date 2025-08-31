@@ -323,8 +323,32 @@ class SmartCoordinateParser:
             
             if geom.isEmpty() or geom.isNull():
                 return None
+            
+            # Check if WKB contains SRID by examining geometry type
+            import struct
+            byte_order = struct.unpack('<B' if wkb_bytes[0] == 1 else '>B', wkb_bytes[0:1])[0]
+            endian = '<' if byte_order == 1 else '>'
+            geom_type = struct.unpack(f'{endian}I', wkb_bytes[1:5])[0]
+            
+            # Check if SRID flag is set (0x20000000 bit)
+            has_srid = bool(geom_type & 0x20000000)
+            
+            if has_srid:
+                # WKB contains SRID, extract it
+                srid = struct.unpack(f'{endian}I', wkb_bytes[5:9])[0]
+                try:
+                    source_crs = QgsCoordinateReferenceSystem(f'EPSG:{srid}')
+                    if not source_crs.isValid():
+                        # Invalid SRID, fall back to WGS84
+                        source_crs = epsg4326
+                except Exception:
+                    source_crs = epsg4326
+            else:
+                # No SRID in WKB - assume WGS84 (standard convention)
+                # Most WKB without SRID represents WGS84 lat/lon coordinates
+                source_crs = epsg4326
                 
-            return self._extract_point_from_geometry(geom, epsg4326, "WKB")
+            return self._extract_point_from_geometry(geom, source_crs, "WKB")
             
         except Exception:
             return None
