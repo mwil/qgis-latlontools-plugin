@@ -131,26 +131,16 @@ jobs:
         cat release_notes.md
     
     - name: Create GitHub Release
-      uses: actions/create-release@v1
-      id: create_release
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: "v${{ github.event.inputs.version }}"
-        release_name: "Lat Lon Tools v${{ github.event.inputs.version }}"
+        name: "Lat Lon Tools v${{ github.event.inputs.version }}"
         body_path: release_notes.md
+        files: ${{ env.package_path }}
         draft: false
         prerelease: ${{ github.event.inputs.prerelease }}
-    
-    - name: Upload plugin package
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ${{ env.package_path }}
-        asset_name: ${{ env.package_name }}
-        asset_content_type: application/zip
     
     - name: Commit updated files
       run: |
