@@ -393,11 +393,45 @@ if __name__ == '__main__':
     print("🧪 Testing Z coordinate handling and elevation edge cases...")
     print("=" * 70)
     
+class TestWKBPointZMGeometries(unittest.TestCase):
+    """Test WKB parsing with PointZM (4D) geometries to ensure base type detection works."""
+    
+    def setUp(self):
+        """Set up test parser with mocked QGIS environment."""
+        self.parser = MockSmartParser()
+    
+    def test_pointzm_geometry_detection(self):
+        """Test that PointZM geometries are properly detected as point geometries."""
+        # PointZM geometry type: Point (1) + Z flag (0x80000000) + M flag (0x40000000) = 0xC0000001
+        # WKB for PointZM with SRID 4326: x=10.0, y=20.0, z=30.0, m=40.0
+        pointzm_wkb = "0101000000C0000001A610000000000000244000000000000040E000000000000044000000000000"
+        
+        result = self.parser._try_wkb(pointzm_wkb)
+        
+        self.assertIsNotNone(result, "PointZM WKB should be successfully parsed")
+        self.assertEqual(result.coordinates, (10.0, 20.0))
+        self.assertEqual(result.format, "WKB")
+    
+    def test_pointm_geometry_detection(self):
+        """Test that PointM geometries are properly detected as point geometries."""
+        # PointM geometry type: Point (1) + M flag (0x40000000) = 0x40000001
+        # WKB for PointM with SRID 4326: x=15.0, y=25.0, m=50.0
+        pointm_wkb = "010100004000000140000001A6100000000000002E40000000000000394000000000000000494000000000000"
+        
+        result = self.parser._try_wkb(pointm_wkb)
+        
+        self.assertIsNotNone(result, "PointM WKB should be successfully parsed")
+        self.assertEqual(result.coordinates, (15.0, 25.0))
+        self.assertEqual(result.format, "WKB")
+
+
+if __name__ == "__main__":
     # Run all test classes
     test_classes = [
         TestZCoordinateHandling,
         TestProjectedCoordinateDetection, 
-        TestSpecificZValueBugCases
+        TestSpecificZValueBugCases,
+        TestWKBPointZMGeometries
     ]
     
     total_tests = 0
