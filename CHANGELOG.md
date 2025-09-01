@@ -21,13 +21,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.8.1] - 2025-09-01
 
 ### Added
-- 
+- **Comprehensive Test Infrastructure**: New validation test suite with 34+ tests across 5 test files
+- **GitHub Actions CI/CD**: Complete workflows for automated builds, testing, and releases
+- **Manual WKB Parsing**: Fallback parser for non-standard WKB geometries that QGIS can't handle
+- **Test Documentation**: TESTING_GUIDE.md and GITHUB_ACTIONS_TESTING.md with complete testing workflows
 
 ### Fixed
-- 
+- **Critical WKB 3D Parsing**: Fixed parsing failures for valid 3D WKB geometries with SRID
+  - Now correctly handles POINT Z geometries like `01010000A0281A00005396BF88FF9560405296C6D462D64040A857CA32C41D7240`
+- **UTM Coordinate Detection**: Enhanced parsing to handle elevation suffixes and prevent invalid transformations
+  - Properly rejects UTM coordinates with elevation (e.g., `33N 315428 5741324 1234`) instead of misinterpreting as lat/lon
+- **DMS Elevation Handling**: Fixed DMS parsing to strip elevation suffixes before coordinate extraction
+  - Now correctly parses coordinates like `40°42'46"N 74°00'22"W 1234m`
+- **Regex Pattern Bugs**: Resolved critical double backslash issues in coordinate format detection
+- **Import Compatibility**: Fixed relative import issues across multiple modules for standalone testing
+- **GitHub Actions Workflows**: Updated deprecated actions and fixed Python syntax errors preventing CI/CD execution
 
 ### Changed
-- 
+- **Test Runner**: Enhanced to support all validation test files with proper QGIS initialization
+- **Error Messages**: Improved coordinate validation error reporting with geographic bounds checking
+- **Code Quality**: Standardized regex patterns, group access, and consistent return formats across parsers
+
+### Technical Improvements
+- **WKB Parser**: Added manual parsing for IEEE 754 double precision coordinates
+- **UTM Validation**: Added geographic bounds checking to prevent invalid coordinate transformations
+- **Test Coverage**: Comprehensive regex validation tests to catch pattern matching bugs automatically
+- **CI/CD Pipeline**: Modern GitHub Actions workflows with artifact management and automated releases
 
 ---
 
