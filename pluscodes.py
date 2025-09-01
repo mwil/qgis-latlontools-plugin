@@ -28,8 +28,14 @@ from qgis.core import (
     QgsProcessingParameterFeatureSource,
     QgsProcessingParameterFeatureSink)
 
-from . import olc
-from .util import tr
+try:
+    from . import olc
+except ImportError:
+    import olc
+try:
+    from .util import tr
+except ImportError:
+    from util import tr
 
 
 class ToPlusCodesAlgorithm(QgsProcessingAlgorithm):

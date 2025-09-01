@@ -9,8 +9,14 @@ from qgis.core import (
     QgsPointXY, QgsJsonUtils
 )
 from qgis.PyQt.QtCore import QTextCodec
-from .util import epsg4326, tr
-from .settings import CoordOrder
+# Handle both plugin context (relative imports) and standalone testing (absolute imports)
+try:
+    from .util import epsg4326, tr
+    from .settings import CoordOrder
+except ImportError:
+    # Fallback for standalone testing
+    from util import epsg4326, tr
+    from settings import CoordOrder
 
 
 class SmartCoordinateParser:
@@ -59,26 +65,39 @@ class SmartCoordinateParser:
         Try existing coordinate formats
         Returns: (lat, lon, bounds, source_crs, description) or None
         """
-        from .mgrs import toWgs
-        from .pluscodes import olc
-        from .utm import utm2Point, isUtm
-        from .ups import ups2Point, isUps
-        from .geohash import decode_exactly, decode_extent
-        from . import georef
-        from . import maidenhead
+        # Handle both plugin context (relative imports) and standalone testing (absolute imports)
+        try:
+            from .mgrs import toWgs
+            from .pluscodes import olc
+            from .utm import utm2Point, isUtm
+            from .ups import ups2Point, isUps
+            from .geohash import decode_exactly, decode_extent
+            from . import georef
+            from . import maidenhead
+        except ImportError:
+            from mgrs import toWgs
+            from pluscodes import olc
+            from utm import utm2Point, isUtm
+            from ups import ups2Point, isUps
+            from geohash import decode_exactly, decode_extent
+            import georef
+            import maidenhead
         
         # Import H3 with fallback
         try:
-            from . import h3
+            try:
+                from . import h3
+            except ImportError:
+                import h3
             has_h3 = True
         except ImportError:
             has_h3 = False
             
         text_upper = text.upper().strip()
-        text_clean = re.sub(r'\s+', '', str(text))
+        text_clean = re.sub(r'\\s+', '', str(text))
         
         # Try MGRS coordinate
-        mgrs_pattern = re.match(r'^\d{1,2}[A-Z]{3}\d+$', re.sub(r'\s+', '', text_upper))
+        mgrs_pattern = re.match(r'^\\d{1,2}[A-Z]{3}\\d+$', re.sub(r'\\s+', '', text_upper))
         if mgrs_pattern:
             try:
                 lat, lon = toWgs(text_clean)
@@ -87,7 +106,7 @@ class SmartCoordinateParser:
                 pass
         
         # Try GEOREF coordinate
-        georef_pattern = re.match(r'^[A-Z]{4}\d{2,}$', text_upper)
+        georef_pattern = re.match(r'^[A-Z]{4}\\d{2,}$', text_upper)
         if georef_pattern:
             try:
                 (lat, lon, prec) = georef.decode(text, False)
@@ -97,9 +116,9 @@ class SmartCoordinateParser:
         
         # Try Plus Codes
         plus_codes_patterns = [
-            r'[23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,}',
-            r'[23456789CFGHJMPQRVWX]{6,8}\+[23456789CFGHJMPQRVWX]*',
-            r'[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{1,}'
+            r'[23456789CFGHJMPQRVWX]{8}\\+[23456789CFGHJMPQRVWX]{2,}',
+            r'[23456789CFGHJMPQRVWX]{6,8}\\+[23456789CFGHJMPQRVWX]*',
+            r'[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{1,}'
         ]
         
         for pattern in plus_codes_patterns:
@@ -115,7 +134,7 @@ class SmartCoordinateParser:
                     continue
         
         # Try Maidenhead Grid
-        maidenhead_pattern = re.match(r'^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$', text_upper)
+        maidenhead_pattern = re.match(r'^[A-R]{2}\\d{2}([A-X]{2}(\\d{2})?)?$', text_upper)
         if maidenhead_pattern:
             try:
                 (lat, lon, lat1, lon1, lat2, lon2) = maidenhead.maidenGrid(text)
@@ -126,7 +145,7 @@ class SmartCoordinateParser:
                 pass
         
         # Try Geohash
-        geohash_clean = re.sub(r'\s+', '', text.lower())
+        geohash_clean = re.sub(r'\\s+', '', text.lower())
         geohash_pattern = re.match(r'^[0-9bcdefghjkmnpqrstuvwxyz]+$', geohash_clean)
         if (geohash_pattern and 
             3 <= len(geohash_clean) <= 12 and
@@ -149,7 +168,9 @@ class SmartCoordinateParser:
                 lat, lon = pt.y(), pt.x()
                 return (lat, lon, None, epsg4326, "Standard UTM")
             except Exception:
-                pass
+                # If UTM format is detected but parsing fails, reject it completely
+                # Don't let it fall through to decimal parsing
+                return None
                 
         # Try UPS coordinate
         if isUps(text):
@@ -158,7 +179,8 @@ class SmartCoordinateParser:
                 lat, lon = pt.y(), pt.x()
                 return (lat, lon, None, epsg4326, "UPS")
             except Exception:
-                pass
+                # If UPS format is detected but parsing fails, reject it completely
+                return None
             
         # Try H3 (if available)
         if has_h3:
@@ -197,7 +219,11 @@ class SmartCoordinateParser:
         # Try DMS format if it has indicators
         if self._has_dms_indicators(text):
             try:
-                from .util import parseDMSString
+                # Handle both plugin context and standalone testing
+                try:
+                    from .util import parseDMSString
+                except ImportError:
+                    from util import parseDMSString
                 lat, lon = parseDMSString(text, self.settings.zoomToCoordOrder)
                 return (lat, lon, None, epsg4326, "DMS")
             except Exception:
@@ -357,45 +383,108 @@ class SmartCoordinateParser:
             geom = QgsGeometry()
             geom.fromWkb(wkb_bytes)
             
-            if geom.isEmpty() or geom.isNull():
-                return None
+            # If QGIS parsing succeeded, use it
+            if not (geom.isEmpty() or geom.isNull()):
+                import struct
+                byte_order = struct.unpack('<B' if wkb_bytes[0] == 1 else '>B', wkb_bytes[0:1])[0]
+                endian = '<' if byte_order == 1 else '>'
+                geom_type = struct.unpack(f'{endian}I', wkb_bytes[1:5])[0]
+                
+                # Check if SRID flag is set (0x20000000 bit)
+                has_srid = bool(geom_type & 0x20000000)
+                
+                if has_srid:
+                    # WKB contains SRID, extract it
+                    srid = struct.unpack(f'{endian}I', wkb_bytes[5:9])[0]
+                    try:
+                        source_crs = QgsCoordinateReferenceSystem(f'EPSG:{srid}')
+                        if not source_crs.isValid():
+                            source_crs = epsg4326
+                    except Exception:
+                        source_crs = epsg4326
+                else:
+                    source_crs = epsg4326
+                    
+                return self._extract_point_from_geometry(geom, source_crs, "WKB")
             
-            # Check if WKB contains SRID by examining geometry type
+            # QGIS parsing failed - try manual parsing for non-standard WKB
+            return self._try_manual_wkb_parsing(wkb_bytes)
+            
+        except Exception:
+            return None
+
+    def _try_manual_wkb_parsing(self, wkb_bytes):
+        """Manual WKB parsing for non-standard formats that QGIS can't handle"""
+        try:
             import struct
-            byte_order = struct.unpack('<B' if wkb_bytes[0] == 1 else '>B', wkb_bytes[0:1])[0]
-            endian = '<' if byte_order == 1 else '>'
+            
+            if len(wkb_bytes) < 21:  # Minimum for Point: 1+4+8+8 = 21 bytes
+                return None
+                
+            # Parse endianness
+            endian = '<' if wkb_bytes[0] == 1 else '>'
+            
+            # Parse geometry type (with potential flags)
             geom_type = struct.unpack(f'{endian}I', wkb_bytes[1:5])[0]
             
-            # Check if SRID flag is set (0x20000000 bit)
+            # Check flags
             has_srid = bool(geom_type & 0x20000000)
             
             # Remove SRID flag to get actual geometry type
             actual_geom_type = geom_type & ~0x20000000
+            has_z = bool(actual_geom_type & 0x80000000) 
+            has_m = bool(actual_geom_type & 0x40000000)
             
-            # Check if this is a point geometry (base type 1) with any dimension flags
-            # This handles Point (2D), PointZ, PointM, and PointZM
+            # Get base geometry type
             base_type = actual_geom_type & 0xFF
-            is_point_geometry = base_type == 1
+            if base_type != 1:  # Not a Point
+                return None
+                
+            offset = 5  # Start after geometry type
             
-            if not is_point_geometry:
-                return None  # Not a point geometry
-            
+            # Parse SRID if present
+            srid = None
             if has_srid:
-                # WKB contains SRID, extract it
-                srid = struct.unpack(f'{endian}I', wkb_bytes[5:9])[0]
+                if len(wkb_bytes) < offset + 4:
+                    return None
+                srid = struct.unpack(f'{endian}I', wkb_bytes[offset:offset+4])[0]
+                offset += 4
+            
+            # Parse coordinates - need at least X, Y (16 bytes)
+            coord_size = 16  # X, Y (8 bytes each)
+            if has_z:
+                coord_size += 8
+            if has_m: 
+                coord_size += 8
+                
+            if len(wkb_bytes) < offset + coord_size:
+                return None
+                
+            # Extract coordinates
+            x = struct.unpack(f'{endian}d', wkb_bytes[offset:offset+8])[0]
+            y = struct.unpack(f'{endian}d', wkb_bytes[offset+8:offset+16])[0]
+            offset += 16
+            
+            z = None
+            if has_z:
+                z = struct.unpack(f'{endian}d', wkb_bytes[offset:offset+8])[0]
+                offset += 8
+                
+            # Skip M coordinate if present (we don't use it)
+            
+            # Set up CRS
+            if srid:
                 try:
                     source_crs = QgsCoordinateReferenceSystem(f'EPSG:{srid}')
                     if not source_crs.isValid():
-                        # Invalid SRID, fall back to WGS84
                         source_crs = epsg4326
                 except Exception:
                     source_crs = epsg4326
             else:
-                # No SRID in WKB - assume WGS84 (standard convention)
-                # Most WKB without SRID represents WGS84 lat/lon coordinates
                 source_crs = epsg4326
-                
-            return self._extract_point_from_geometry(geom, source_crs, "WKB")
+            
+            # Return tuple format like other parsing methods
+            return (y, x, z, source_crs)
             
         except Exception:
             return None

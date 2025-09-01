@@ -11,7 +11,10 @@
 import re
 import math
 from qgis.core import QgsPointXY, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject
-from .util import epsg4326, tr
+try:
+    from .util import epsg4326, tr
+except ImportError:
+    from util import epsg4326, tr
 
 epsg32661 = QgsCoordinateReferenceSystem("EPSG:32661")
 epsg32761 = QgsCoordinateReferenceSystem("EPSG:32761")

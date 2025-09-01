@@ -19,7 +19,11 @@ try:
         H3_INSTALLED = False
 except Exception:
     H3_INSTALLED = False
-from . import mapProviders
+# Handle both plugin context (relative imports) and standalone testing (absolute imports)
+try:
+    from . import mapProviders
+except ImportError:
+    import mapProviders
 
 from qgis.PyQt.uic import loadUiType
 from qgis.PyQt.QtWidgets import QDialog, QDialogButtonBox, QFileDialog
@@ -27,7 +31,11 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 
 from qgis.core import QgsCoordinateReferenceSystem, QgsSettings
-from .util import epsg4326, tr
+# Handle both plugin context (relative imports) and standalone testing (absolute imports)
+try:
+    from .util import epsg4326, tr
+except ImportError:
+    from util import epsg4326, tr
 
 
 FORM_CLASS, _ = loadUiType(os.path.join(
@@ -237,7 +245,11 @@ class SettingsWidget(QDialog, FORM_CLASS):
 
         ### ZOOM TO SETTINGS ###
         # Enhanced with plugin enhancements module
-        from .plugin_enhancements import PluginEnhancements
+        # Handle both plugin context (relative imports) and standalone testing (absolute imports)
+        try:
+            from .plugin_enhancements import PluginEnhancements
+        except ImportError:
+            from plugin_enhancements import PluginEnhancements
         self._enhancements = PluginEnhancements(None, iface)
         self._settings_manager = self._enhancements.enhance_settings_dialog(self)
         self.zoomToProjectionSelectionWidget.setCrs(epsg4326)

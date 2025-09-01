@@ -1,1 +1,1 @@
-"""Test package for QGIS Lat Lon Tools plugin"""\n
+"""Test package for QGIS Lat Lon Tools plugin"""

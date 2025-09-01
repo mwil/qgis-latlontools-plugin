@@ -11,13 +11,34 @@
 import re
 import math
 from qgis.core import QgsPointXY, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject
-from .util import epsg4326, tr
+try:
+    from .util import epsg4326, tr
+except ImportError:
+    from util import epsg4326, tr
 
 class UtmException(Exception):
     pass
 
 def utmParse(utm_str):
     utm = utm_str.strip().upper()
+    
+    # Handle UTM with elevation: "33N 315428 5741324 1234" or "33 N 315428 5741324 1234m"
+    m = re.match(r'(\d+)\s*([NS])\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)', utm)
+    if m:
+        m = m.groups()
+        if len(m) == 5:
+            zone = int(m[0])
+            if zone < 1 or zone > 60:
+                raise UtmException(tr('Invalid UTM Coordinate'))
+            hemisphere = m[1]
+            if hemisphere != 'N' and hemisphere != 'S':
+                raise UtmException(tr('Invalid UTM Coordinate'))
+            easting = float(m[2])
+            northing = float(m[3])
+            # Ignore elevation (m[4])
+            return(zone, hemisphere, easting, northing)
+    
+    # Standard UTM without elevation: "33 N 315428 5741324"
     m = re.match(r'(\d+)\s*([NS])\s+(\d+\.?\d*)\s+(\d+\.?\d*)', utm)
     if m:
         m = m.groups()
@@ -31,6 +52,23 @@ def utmParse(utm_str):
             easting = float(m[2])
             northing = float(m[3])
             return(zone, hemisphere, easting, northing)
+    
+    # Handle alternative formats with elevation: "315428mE 5741324mN 33N 1234m" 
+    m = re.match(r'(\d+\.?\d*)\s*M?\s*E\s*,?\s*(\d+\.?\d*)\s*M?\s*N\s*,?\s*(\d+)\s*([NS])\s*(?:,?\s*\d+\.?\d*\s*M?)?', utm)
+    if m:
+        m = m.groups()
+        if len(m) >= 4:
+            zone = int(m[2])
+            if zone < 1 or zone > 60:
+                raise UtmException(tr('Invalid UTM Coordinate'))
+            hemisphere = m[3]
+            if hemisphere != 'N' and hemisphere != 'S':
+                raise UtmException(tr('Invalid UTM Coordinate'))
+            easting = float(m[0])
+            northing = float(m[1])
+            return(zone, hemisphere, easting, northing)
+            
+    # Standard alternative format without elevation
     m = re.match(r'(\d+\.?\d*)\s*,\s*(\d+\.?\d*)\s*,\s*(\d+)\s*([NS])', utm)
     if m is None:
         m = re.match(r'(\d+\.?\d*)\s*M\s*E\s*,\s*(\d+\.?\d*)\s*M\s*N\s*,\s*(\d+)\s*([NS])', utm)
@@ -54,9 +92,26 @@ def utmParse(utm_str):
 def utm2Point(utm, crs=epsg4326):
     zone, hemisphere, easting, northing = utmParse(utm)
     utmcrs = QgsCoordinateReferenceSystem(utmGetEpsg(hemisphere, zone))
+    
+    # Validate that the UTM CRS is valid
+    if not utmcrs.isValid():
+        raise UtmException('Cannot create UTM coordinate reference system')
+    
     pt = QgsPointXY(easting, northing)
     utmtrans = QgsCoordinateTransform(utmcrs, crs, QgsProject.instance())
-    return(utmtrans.transform(pt))
+    
+    # Check if transform is valid
+    if not utmtrans.isValid():
+        raise UtmException('Cannot create coordinate transformation')
+    
+    transformed_pt = utmtrans.transform(pt)
+    
+    # Validate that transformation actually happened (not just returning raw coordinates)
+    # UTM coordinates are typically 6-7 digits, geographic coordinates are typically < 180
+    if abs(transformed_pt.x()) > 1000 or abs(transformed_pt.y()) > 1000:
+        raise UtmException('UTM coordinate transformation failed - invalid result')
+    
+    return transformed_pt
 
 def isUtm(utm):
     try:
