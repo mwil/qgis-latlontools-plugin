@@ -26,6 +26,9 @@ class SmartCoordinateParser:
     Maidenhead Grid, H3, GeoJSON, DMS, and decimal coordinates
     """
     
+    # WKB geometry type constants
+    WKB_POINT_TYPE = 1
+    
     def __init__(self, settings_obj, iface):
         self.settings = settings_obj
         self.iface = iface
@@ -180,6 +183,7 @@ class SmartCoordinateParser:
                 return (lat, lon, None, epsg4326, "UPS")
             except Exception:
                 # If UPS format is detected but parsing fails, reject it completely
+                # Don't let it fall through to decimal parsing
                 return None
             
         # Try H3 (if available)
@@ -634,6 +638,3 @@ class SmartCoordinateParser:
                 return True
         
         return False
-
-    # WKB geometry type constants
-    WKB_POINT_TYPE = 1
