@@ -75,7 +75,7 @@ jobs:
         echo "package_name=${PACKAGE_NAME}.zip" >> $GITHUB_ENV
     
     - name: Upload development build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ env.package_name }}
         path: dist/${{ env.package_name }}
