@@ -409,8 +409,9 @@ class TestWKBPointZMGeometries(unittest.TestCase):
     def test_pointzm_geometry_detection(self):
         """Test that PointZM geometries are properly detected and parsed through public interface."""
         # PointZM geometry type: Point (1) + Z flag (0x80000000) + M flag (0x40000000) = 0xC0000001
-        # WKB for PointZM: x=10.0, y=20.0, z=30.0, m=40.0
-        pointzm_wkb = "0101000000C0000001A610000000000000244000000000000040E000000000000044000000000000"
+        # WKB for PointZM: little endian, type 0xC0000001, x=10.0, y=20.0, z=30.0, m=40.0
+        # 01 (endianness) C0000001 (geometry type) coordinates as double precision
+        pointzm_wkb = "01C000000100000000000024400000000000003440000000000000344000000000000044400"
         
         # Test through public parse method rather than private _try_wkb
         result = self.parser.parse(pointzm_wkb)
@@ -425,8 +426,9 @@ class TestWKBPointZMGeometries(unittest.TestCase):
     def test_pointm_geometry_detection(self):
         """Test that PointM geometries are properly detected and parsed through public interface."""
         # PointM geometry type: Point (1) + M flag (0x40000000) = 0x40000001
-        # WKB for PointM: x=15.0, y=25.0, m=50.0
-        pointm_wkb = "010100004000000140000001A6100000000000002E40000000000000394000000000000000494000000000000"
+        # WKB for PointM: little endian, type 0x40000001, x=15.0, y=25.0, m=50.0
+        # 01 (endianness) 01000040 (geometry type) coordinates as double precision
+        pointm_wkb = "01010000400000000000000000002E4000000000000039400000000000004940"
         
         # Test through public parse method rather than private _try_wkb
         result = self.parser.parse(pointm_wkb)
