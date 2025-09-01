@@ -8,7 +8,11 @@
  *                                                                         *
  ***************************************************************************/
 """
-from .util import tr
+# Handle both plugin context (relative imports) and standalone testing (absolute imports)
+try:
+    from .util import tr
+except ImportError:
+    from util import tr
 
 MAP_PROVIDERS = [
     [tr('OSM'), 'http://www.openstreetmap.org/#map={zoom}/{lat}/{lon}', 'http://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map={zoom}/{lat}/{lon}'],

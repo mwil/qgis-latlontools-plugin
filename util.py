@@ -122,6 +122,11 @@ def parseDMSString(str, order=0):
     be in Lat Lon order otherwise they are in Lon Lat order. For DMS coordinates
     it does not matter the order.'''
     str = str.strip().upper()  # Make it all upper case
+    
+    # Remove elevation suffixes that could interfere with DMS parsing
+    str = re.sub(r'\s+\d+\.?\d*\s*(?:M|FT|FEET|METERS?)\s*$', '', str)
+    str = re.sub(r'\s+\d+\.?\d*\s*$', '', str)  # Remove trailing numbers without units
+    
     try:
         if re.search(r"[NSEW]", str) is None:
             # There were no annotated dms coordinates so assume decimal degrees
@@ -140,10 +145,11 @@ def parseDMSString(str, order=0):
             # We should have a DMS coordinate
             if re.search(r'[NSEW]\s*\d+.+[NSEW]\s*\d+', str) is None:
                 # We assume that the cardinal directions occur after the digits
-                m = re.findall(r'(.+)\s*([NS])[\s,;:]*(.+)\s*([EW])', str)
+                # Note: Using non-greedy (.+?) to prevent over-matching across coordinate boundaries
+                m = re.findall(r'(.+?)\s*([NS])[\s,;:]*(.+?)\s*([EW])', str)
                 if len(m) != 1 or len(m[0]) != 4:
                     # This is either invalid or the coordinates are ordered by lon lat
-                    m = re.findall(r'(.+)\s*([EW])[\s,;:]*(.+)\s*([NS])', str)
+                    m = re.findall(r'(.+?)\s*([EW])[\s,;:]*(.+?)\s*([NS])', str)
                     if len(m) != 1 or len(m[0]) != 4:
                         # Now we know it is invalid
                         raise ValueError('Invalid DMS Coordinate')
