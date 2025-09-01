@@ -11,6 +11,15 @@
 import os
 import re
 
+# Pre-compile regex patterns for performance
+COMPILED_REGEX = {
+    'whitespace': re.compile(r'\s+'),
+    'point_search': re.compile(r'POINT\('),
+    'point_extract': re.compile(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)'),
+    'coord_split': re.compile(r'[\s,;:]+'),
+    'mgrs_clean': re.compile(r'\s+'),
+}
+
 from qgis.PyQt.uic import loadUiType
 from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QDockWidget, QApplication, QMenu
@@ -179,7 +188,7 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                 QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Trying MGRS (forced by setting)", "LatLonTools", Qgis.Info)
                 # An MGRS coordinate only format has been specified. This will result in an exception
                 # if it is not a valid MGRS coordinate
-                text2 = re.sub(r'\s+', '', str(text))  # Remove all white space
+                text2 = COMPILED_REGEX['mgrs_clean'].sub('', str(text))  # Remove all white space
                 lat, lon = mgrs.toWgs(text2)
                 QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: MGRS SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, None, epsg4326)
@@ -268,7 +277,7 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             # Try other formats with exception handling
             for format_name, format_func in [
                 ("Georef", lambda: georef.decode(text, False)),
-                ("MGRS", lambda: mgrs.toWgs(re.sub(r'\s+', '', str(text)))),
+                ("MGRS", lambda: mgrs.toWgs(COMPILED_REGEX['mgrs_clean'].sub('', str(text)))),
                 ("Plus Codes", lambda: olc.decode(text)),
                 ("Geohash", lambda: geohash.decode_exactly(text))
             ]:
@@ -293,8 +302,8 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                     continue
 
             # Check to see if it is a WKT POINT format
-            if re.search(r'POINT\(', text) is not None:
-                m = re.findall(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)', text)
+            if COMPILED_REGEX['point_search'].search(text) is not None:
+                m = COMPILED_REGEX['point_extract'].findall(text)
                 if len(m) != 1:
                     raise ValueError(tr('Invalid Coordinates'))
                 lon = float(m[0][0])
@@ -315,7 +324,7 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                 return(lat, lon, None, epsg4326)
 
             # We are left with a non WGS 84 decimal projection
-            coords = re.split(r'[\s,;:]+', text, 1)
+            coords = COMPILED_REGEX['coord_split'].split(text, 1)
             if len(coords) < 2:
                 QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: Not enough coordinates found: {coords}", "LatLonTools", Qgis.Warning)
                 raise ValueError(tr('Invalid Coordinates'))

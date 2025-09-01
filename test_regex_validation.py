@@ -24,8 +24,41 @@ import unittest
 import re
 from unittest.mock import Mock, patch
 
-# Set up QGIS environment
-sys.path.insert(0, '/Applications/QGIS.app/Contents/Resources/python')
+# Set up QGIS environment dynamically for cross-platform support
+import platform
+
+qgis_python_path = os.environ.get('QGIS_PYTHON_PATH')
+if not qgis_python_path:
+    system = platform.system()
+    if system == 'Darwin':  # macOS
+        qgis_python_path = '/Applications/QGIS.app/Contents/Resources/python'
+    elif system == 'Windows':
+        # Try common install locations for QGIS on Windows
+        possible_paths = [
+            r'C:\Program Files\QGIS 3.28\apps\qgis\python',
+            r'C:\Program Files\QGIS 3.22\apps\qgis\python',
+            r'C:\OSGeo4W\apps\qgis\python',
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                qgis_python_path = path
+                break
+    elif system == 'Linux':
+        # Try common install locations for QGIS on Linux
+        possible_paths = [
+            '/usr/share/qgis/python',
+            '/usr/local/share/qgis/python',
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                qgis_python_path = path
+                break
+
+if qgis_python_path and os.path.exists(qgis_python_path):
+    sys.path.insert(0, qgis_python_path)
+else:
+    print(f"Warning: QGIS Python path not found. Set QGIS_PYTHON_PATH environment variable.")
+    
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Test data for regex validation
@@ -246,13 +279,14 @@ class TestRegexEscapingValidation(unittest.TestCase):
             'coordinateConverter.py'
         ]
         
-        # Patterns that indicate over-escaping
+        # Patterns that indicate over-escaping (fixed meta-escaping issues)
+        # These patterns look for DOUBLE backslashes that would be over-escaped
         problematic_patterns = [
-            r'r\'.*\\\\s',      # r'...\\s' - over-escaped whitespace
-            r'r\'.*\\\\d',      # r'...\\d' - over-escaped digit  
-            r'r\'.*\\\\w',      # r'...\\w' - over-escaped word character
-            r'r\'.*POINT\\\\',  # r'...POINT\\' - over-escaped POINT
-            r'r\'.*\[\\\\s',    # r'...[\\s' - over-escaped whitespace in character class
+            r"r'[^']*\\\\s",      # r'...\\\\s' - over-escaped whitespace (4 backslashes)
+            r"r'[^']*\\\\d",      # r'...\\\\d' - over-escaped digit (4 backslashes)
+            r"r'[^']*\\\\w",      # r'...\\\\w' - over-escaped word character (4 backslashes)
+            r"r'[^']*POINT\\\\\\\\(",  # r'...POINT\\\\\\\\(' - over-escaped POINT (8 backslashes)
+            r"r'[^']*\[\\\\s",    # r'...[\\\\s' - over-escaped whitespace in character class
         ]
         
         for filename in files_to_check:

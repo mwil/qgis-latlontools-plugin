@@ -27,8 +27,41 @@ import os
 import unittest
 from unittest.mock import Mock, patch, MagicMock
 
-# Set up QGIS environment
-sys.path.insert(0, '/Applications/QGIS.app/Contents/Resources/python')
+# Set up QGIS environment dynamically for cross-platform support
+import platform
+
+qgis_python_path = os.environ.get('QGIS_PYTHON_PATH')
+if not qgis_python_path:
+    system = platform.system()
+    if system == 'Darwin':  # macOS
+        qgis_python_path = '/Applications/QGIS.app/Contents/Resources/python'
+    elif system == 'Windows':
+        # Try common install locations for QGIS on Windows
+        possible_paths = [
+            r'C:\Program Files\QGIS 3.28\apps\qgis\python',
+            r'C:\Program Files\QGIS 3.22\apps\qgis\python',
+            r'C:\OSGeo4W\apps\qgis\python',
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                qgis_python_path = path
+                break
+    elif system == 'Linux':
+        # Try common install locations for QGIS on Linux
+        possible_paths = [
+            '/usr/share/qgis/python',
+            '/usr/local/share/qgis/python',
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                qgis_python_path = path
+                break
+
+if qgis_python_path and os.path.exists(qgis_python_path):
+    sys.path.insert(0, qgis_python_path)
+else:
+    print(f"Warning: QGIS Python path not found. Set QGIS_PYTHON_PATH environment variable.")
+    
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Test coordinates covering all major formats
