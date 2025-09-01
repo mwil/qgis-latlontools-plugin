@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 
+
+### Fixed
+- 
+
+### Changed
+- 
+
+---
+
+## [3.9.0] - 2025-09-01
+
+### Added
 - **Comprehensive Parser Integration**: SmartCoordinateParser now used consistently across all UI components (zoomToLatLon, digitizer, multizoom)
 - **Cross-Platform Test Support**: Test suites now support Windows, Linux, and macOS with dynamic QGIS path detection
 - **Performance Optimizations**: Pre-compiled regex patterns for improved coordinate parsing performance
