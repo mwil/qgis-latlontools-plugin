@@ -136,8 +136,8 @@ class DigitizerWidget(QDialog, FORM_CLASS):
                         pt = geom.asPoint()
                         lat = pt.y()
                         lon = pt.x()
-                    elif re.search(r'POINT\\(', text) is not None:
-                        m = re.findall(r'POINT\\(\\s*([+-]?\\d*\\.?\\d*)\\s+([+-]?\\d*\\.?\\d*)', text)
+                    elif re.search(r'POINT\(', text) is not None:
+                        m = re.findall(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)', text)
                         if len(m) != 1:
                             raise ValueError(tr('Invalid Coordinates'))
                         lon = float(m[0][0])
@@ -147,7 +147,7 @@ class DigitizerWidget(QDialog, FORM_CLASS):
                     srcCrs = epsg4326
                 elif self.inputProjection == 1:
                     # This is an MGRS coordinate
-                    text = re.sub(r'\\s+', '', text)  # Remove all white space
+                    text = re.sub(r'\s+', '', text)  # Remove all white space
                     lat, lon = mgrs.toWgs(text)
                     srcCrs = epsg4326
                 elif self.inputProjection == 4:
@@ -163,8 +163,8 @@ class DigitizerWidget(QDialog, FORM_CLASS):
                     lon = pt.x()
                     srcCrs = epsg4326
                 else:  # Is either the project or custom CRS
-                    if re.search(r'POINT\\(', text) is None:
-                        coords = re.split(r'[\\s,;:]+', text, 1)
+                    if re.search(r'POINT\(', text) is None:
+                        coords = re.split(r'[\s,;:]+', text, 1)
                         if len(coords) < 2:
                             raise ValueError('Invalid Coordinates')
                         if self.inputXYOrder == 0:  # Y, X Order
@@ -174,7 +174,7 @@ class DigitizerWidget(QDialog, FORM_CLASS):
                             lon = float(coords[0])
                             lat = float(coords[1])
                     else:
-                        m = re.findall(r'POINT\\(\\s*([+-]?\\d*\\.?\\d*)\\s+([+-]?\\d*\\.?\\d*)', text)
+                        m = re.findall(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)', text)
                         if len(m) != 1:
                             raise ValueError(tr('Invalid Coordinates'))
                         lon = float(m[0][0])
