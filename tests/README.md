@@ -11,7 +11,10 @@ tests/
 │   └── test_smart_parser_full.py      # Complete parser with QGIS mocks
 ├── validation/              # End-to-end validation tests
 │   ├── test_smart_parser_validation.py    # Final validation suite
-│   └── test_comprehensive_edge_cases.py   # Comprehensive edge cases
+│   ├── test_comprehensive_edge_cases.py   # Comprehensive edge cases
+│   ├── test_coordinate_flipping_comprehensive.py  # Coordinate order tests
+│   ├── test_real_world_coordinate_scenarios.py    # Real-world scenarios
+│   └── test_z_coordinate_handling.py      # Z/elevation value edge cases
 └── debug/                   # Debug utilities and tools
     ├── debug_maidenhead.py    # Maidenhead pattern debugging
     ├── debug_dms.py           # DMS detection debugging
@@ -59,8 +62,10 @@ python tests/unit/test_pattern_detection.py
 
 #### Validation Tests
 - Final refinement validation (100% success rate)
-- Comprehensive edge case testing (65+ test cases)
+- Comprehensive edge case testing (65+ test cases)  
 - Real-world coordinate format scenarios
+- Coordinate order flipping and text preservation
+- **Z coordinate and elevation handling** (prevents regressions)
 - Boundary condition testing
 
 #### Unit Tests  

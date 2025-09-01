@@ -216,8 +216,43 @@ class SmartCoordinateParser:
         # Use first two coordinates
         coord1, coord2 = numbers[0], numbers[1]
         
+        # Critical validation: Reject coordinates that look like UTM/projected values
+        # that fell through format-specific parsing
+        if self._looks_like_projected_coordinates(coord1, coord2, numbers):
+            raise ValueError("Coordinates appear to be projected/UTM values, not geographic")
+        
         # Validate coordinate order
         return self._validate_coordinate_order(coord1, coord2)
+        
+    def _looks_like_projected_coordinates(self, coord1, coord2, all_numbers):
+        """Detect if coordinates look like UTM/projected values that shouldn't be treated as lat/lon"""
+        
+        # UTM easting values are typically 100k-900k, northing 0-10M
+        # If we see these ranges, it's likely UTM that failed specific parsing
+        utm_easting_range = 100000 <= abs(coord2) <= 900000
+        utm_northing_range = 0 <= abs(coord1) <= 10000000
+        
+        # Check for UTM-like patterns
+        if utm_easting_range and utm_northing_range:
+            # Additional evidence: zone number in the mix
+            has_zone_like_number = any(1 <= n <= 60 for n in all_numbers)
+            if has_zone_like_number:
+                return True
+        
+        # Large coordinate values that are clearly not geographic
+        if abs(coord1) > 180 or abs(coord2) > 180:
+            # Exception: allow obviously valid large longitude in correct range
+            if -180 <= coord1 <= 180 and -90 <= coord2 <= 90:
+                return False
+            if -180 <= coord2 <= 180 and -90 <= coord1 <= 90:
+                return False
+            return True
+            
+        # Check for suspiciously precise values that suggest projected coordinates
+        if (abs(coord1) > 1000 or abs(coord2) > 1000):
+            return True
+            
+        return False
         
     def _extract_numbers(self, text):
         """Extract all numeric values from text"""
@@ -332,6 +367,16 @@ class SmartCoordinateParser:
             
             # Check if SRID flag is set (0x20000000 bit)
             has_srid = bool(geom_type & 0x20000000)
+            
+            # Remove SRID flag to get actual geometry type
+            actual_geom_type = geom_type & ~0x20000000
+            
+            # Check if this is a supported point type (2D Point or 3D PointZ)
+            is_point_2d = actual_geom_type == 1  # Point
+            is_point_3d = actual_geom_type == 0x80000001  # PointZ
+            
+            if not (is_point_2d or is_point_3d):
+                return None  # Not a point geometry
             
             if has_srid:
                 # WKB contains SRID, extract it
