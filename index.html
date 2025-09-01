@@ -38,6 +38,27 @@ code {
 <body>
 <h1>Lat Lon Tools Plugin</h1>
 <p><strong><em>Lat Lon Tools</em></strong> makes it easy to capture, zoom to coordinates, convert coordinates in text fields into new point layers, export point geometry into text fields, and interact with other on-line mapping tools. It adds MGRS, Standard UTM, UPS, Geohash, GEOREF, Plus Code (Open Location Code), WKT, EWKT, JSON, and ECEF coordinate support to QGIS. When working with <strong>Google Earth</strong>, <strong>Google Maps</strong> or other on-line mapping tools, coordinates are specified in the order of 'Latitude, Longitude'. By default <strong><em>Lat Lon Tools</em></strong> uses the standard Google Map format, but is very flexible and can use virtually any projection and coordinate format for input and output. The following tools are available in <strong><em>Lat Lon Tools</em></strong>.</p>
+<h2>🚀 Enhanced Features</h2>
+<p>This fork includes significant enhancements that make coordinate handling more intuitive and powerful:</p>
+<h3><strong>Smart Auto-Detect Mode</strong></h3>
+<p>Automatically detects and parses <strong>12+ coordinate formats</strong> without requiring format specification:
+- <strong>WKT/EWKT/WKB</strong>, <strong>MGRS</strong>, <strong>UTM/UPS</strong>, <strong>Plus Codes</strong>, <strong>Geohash</strong>, <strong>Maidenhead</strong>, <strong>H3</strong>, <strong>GeoJSON</strong>, <strong>DMS</strong>, and <strong>Decimal Degrees</strong>
+- Priority-based parsing ensures accurate format recognition
+- Configurable coordinate order preferences for ambiguous inputs</p>
+<h3><strong>Enhanced User Experience</strong></h3>
+<ul>
+<li><strong>Text Preservation</strong>: Input text is preserved when switching coordinate order (X,Y ↔ Y,X)</li>
+<li><strong>Settings Persistence</strong>: All preferences automatically saved across QGIS sessions</li>
+<li><strong>Improved Zoom</strong>: Actually zooms the map with intelligent scale selection, not just marker placement</li>
+</ul>
+<h3><strong>Professional Development Workflow</strong></h3>
+<ul>
+<li><strong>Automated Releases</strong>: GitHub Actions for seamless version management and distribution</li>
+<li><strong>Comprehensive Testing</strong>: Unit, integration, and validation test suites</li>
+<li><strong>Modular Architecture</strong>: Clean separation of enhancements for maintainability</li>
+</ul>
+<p><strong>📖 <a href="PLUGIN_ENHANCEMENTS_README.md">View Complete Enhancement Documentation</a></strong></p>
+<hr />
 <div style="text-align:center"><img src="doc/menu.jpg" alt="Lat Lon Tools Plugin"></div>
 
 <p>Here are the expanded <strong><em>Copy Extents to Clipboard</em></strong> menu items.</p>

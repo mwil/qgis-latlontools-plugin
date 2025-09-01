@@ -366,7 +366,7 @@ class MultiZoomWidget(QDockWidget, FORM_CLASS):
             try:
                 if self.settings.multiZoomToProjIsMGRS():
                     '''Check to see if we have an MGRS coordinate for entry'''
-                    lat, lon = mgrs.toWgs(re.sub(r'\\s+', '', parts[0]))
+                    lat, lon = mgrs.toWgs(re.sub(r'\s+', '', parts[0]))
                     if numFields >= 2:
                         label = parts[1]
                     if numFields >= 3:
@@ -393,7 +393,7 @@ class MultiZoomWidget(QDockWidget, FORM_CLASS):
                     if self.settings.multiZoomToProjIsWgs84():
                         lat, lon = parseDMSString(parts[0], self.settings.multiCoordOrder)
                     else:
-                        parts = re.split(r'[\\s;:]+', parts[0], 1)
+                        parts = re.split(r'[\s;:]+', parts[0], 1)
                         if len(parts) < 2:
                             self.iface.messageBar().pushMessage("", tr("Invalid Coordinate."), level=Qgis.Warning, duration=3)
                             return
