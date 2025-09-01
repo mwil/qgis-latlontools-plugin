@@ -439,7 +439,7 @@ class SmartCoordinateParser:
             
             # Get base geometry type
             base_type = actual_geom_type & 0xFF
-            if base_type != 1:  # Not a Point
+            if base_type != self.WKB_POINT_TYPE:  # Not a Point
                 return None
                 
             offset = 5  # Start after geometry type
@@ -634,3 +634,6 @@ class SmartCoordinateParser:
                 return True
         
         return False
+
+    # WKB geometry type constants
+    WKB_POINT_TYPE = 1

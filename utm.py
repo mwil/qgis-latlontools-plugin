@@ -95,7 +95,7 @@ def utm2Point(utm, crs=epsg4326):
     
     # Validate that the UTM CRS is valid
     if not utmcrs.isValid():
-        raise UtmException('Cannot create UTM coordinate reference system')
+        raise UtmException(f'Cannot create UTM coordinate reference system for zone {zone}, hemisphere {hemisphere}')
     
     pt = QgsPointXY(easting, northing)
     utmtrans = QgsCoordinateTransform(utmcrs, crs, QgsProject.instance())
@@ -106,10 +106,9 @@ def utm2Point(utm, crs=epsg4326):
     
     transformed_pt = utmtrans.transform(pt)
     
-    # Validate that transformation actually happened (not just returning raw coordinates)
-    # UTM coordinates are typically 6-7 digits, geographic coordinates are typically < 180
-    if abs(transformed_pt.x()) > 1000 or abs(transformed_pt.y()) > 1000:
-        raise UtmException('UTM coordinate transformation failed - invalid result')
+    # Validate that the transformed coordinates are within geographic bounds
+    if not (-180 <= transformed_pt.x() <= 180) or not (-90 <= transformed_pt.y() <= 90):
+        raise UtmException(f'UTM coordinate transformation failed - result outside geographic bounds: {transformed_pt.x()}, {transformed_pt.y()}')
     
     return transformed_pt
 

@@ -145,6 +145,7 @@ def parseDMSString(str, order=0):
             # We should have a DMS coordinate
             if re.search(r'[NSEW]\s*\d+.+[NSEW]\s*\d+', str) is None:
                 # We assume that the cardinal directions occur after the digits
+                # Note: Using non-greedy (.+?) to prevent over-matching across coordinate boundaries
                 m = re.findall(r'(.+?)\s*([NS])[\s,;:]*(.+?)\s*([EW])', str)
                 if len(m) != 1 or len(m[0]) != 4:
                     # This is either invalid or the coordinates are ordered by lon lat
