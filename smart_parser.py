@@ -251,9 +251,7 @@ class SmartCoordinateParser:
                 return False
             return True
             
-        # Check for suspiciously precise values that suggest projected coordinates
-        if (abs(coord1) > 1000 or abs(coord2) > 1000):
-            return True
+        # Removed overly restrictive check for values > 1000; rely on geographic bounds above
             
         return False
         

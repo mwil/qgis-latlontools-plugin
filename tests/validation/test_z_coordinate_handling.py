@@ -389,10 +389,6 @@ class TestSpecificZValueBugCases(unittest.TestCase):
                     f"Problematic pattern should be rejected: {pattern}")
 
 
-if __name__ == '__main__':
-    print("🧪 Testing Z coordinate handling and elevation edge cases...")
-    print("=" * 70)
-    
 class TestWKBPointZMGeometries(unittest.TestCase):
     """Test WKB parsing with PointZM (4D) geometries to ensure base type detection works."""
     
