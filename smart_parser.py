@@ -371,11 +371,12 @@ class SmartCoordinateParser:
             # Remove SRID flag to get actual geometry type
             actual_geom_type = geom_type & ~0x20000000
             
-            # Check if this is a supported point type (2D Point or 3D PointZ)
-            is_point_2d = actual_geom_type == 1  # Point
-            is_point_3d = actual_geom_type == 0x80000001  # PointZ
+            # Check if this is a point geometry (base type 1) with any dimension flags
+            # This handles Point (2D), PointZ, PointM, and PointZM
+            base_type = actual_geom_type & 0xFF
+            is_point_geometry = base_type == 1
             
-            if not (is_point_2d or is_point_3d):
+            if not is_point_geometry:
                 return None  # Not a point geometry
             
             if has_srid:
