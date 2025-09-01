@@ -94,10 +94,10 @@ class SmartCoordinateParser:
             has_h3 = False
             
         text_upper = text.upper().strip()
-        text_clean = re.sub(r'\\s+', '', str(text))
+        text_clean = re.sub(r'\s+', '', str(text))
         
         # Try MGRS coordinate
-        mgrs_pattern = re.match(r'^\\d{1,2}[A-Z]{3}\\d+$', re.sub(r'\\s+', '', text_upper))
+        mgrs_pattern = re.match(r'^\d{1,2}[A-Z]{3}\d+$', re.sub(r'\s+', '', text_upper))
         if mgrs_pattern:
             try:
                 lat, lon = toWgs(text_clean)
@@ -106,7 +106,7 @@ class SmartCoordinateParser:
                 pass
         
         # Try GEOREF coordinate
-        georef_pattern = re.match(r'^[A-Z]{4}\\d{2,}$', text_upper)
+        georef_pattern = re.match(r'^[A-Z]{4}\d{2,}$', text_upper)
         if georef_pattern:
             try:
                 (lat, lon, prec) = georef.decode(text, False)
@@ -116,9 +116,9 @@ class SmartCoordinateParser:
         
         # Try Plus Codes
         plus_codes_patterns = [
-            r'[23456789CFGHJMPQRVWX]{8}\\+[23456789CFGHJMPQRVWX]{2,}',
-            r'[23456789CFGHJMPQRVWX]{6,8}\\+[23456789CFGHJMPQRVWX]*',
-            r'[23456789CFGHJMPQRVWX]{2,8}\\+[23456789CFGHJMPQRVWX]{1,}'
+            r'[23456789CFGHJMPQRVWX]{8}\+[23456789CFGHJMPQRVWX]{2,}',
+            r'[23456789CFGHJMPQRVWX]{6,8}\+[23456789CFGHJMPQRVWX]*',
+            r'[23456789CFGHJMPQRVWX]{2,8}\+[23456789CFGHJMPQRVWX]{1,}'
         ]
         
         for pattern in plus_codes_patterns:
@@ -134,7 +134,7 @@ class SmartCoordinateParser:
                     continue
         
         # Try Maidenhead Grid
-        maidenhead_pattern = re.match(r'^[A-R]{2}\\d{2}([A-X]{2}(\\d{2})?)?$', text_upper)
+        maidenhead_pattern = re.match(r'^[A-R]{2}\d{2}([A-X]{2}(\d{2})?)?$', text_upper)
         if maidenhead_pattern:
             try:
                 (lat, lon, lat1, lon1, lat2, lon2) = maidenhead.maidenGrid(text)
@@ -145,7 +145,7 @@ class SmartCoordinateParser:
                 pass
         
         # Try Geohash
-        geohash_clean = re.sub(r'\\s+', '', text.lower())
+        geohash_clean = re.sub(r'\s+', '', text.lower())
         geohash_pattern = re.match(r'^[0-9bcdefghjkmnpqrstuvwxyz]+$', geohash_clean)
         if (geohash_pattern and 
             3 <= len(geohash_clean) <= 12 and
@@ -258,14 +258,18 @@ class SmartCoordinateParser:
             return ((-180 <= c1 <= 180 and -90 <= c2 <= 90) or 
                     (-180 <= c2 <= 180 and -90 <= c1 <= 90))
         
-        # UTM easting values are typically 100k-900k, northing 0-10M
-        # If we see these ranges, it's likely UTM that failed specific parsing
-        utm_easting_range = 100000 <= abs(coord2) <= 900000
-        utm_northing_range = 0 <= abs(coord1) <= 10000000
+        # UTM coordinate detection logic
+        # Note: This assumes typical patterns but doesn't rely on specific coordinate order
+        # since we check both possible orientations
         
-        # Check for UTM-like patterns
-        if utm_easting_range and utm_northing_range:
-            # Additional evidence: zone number in the mix
+        # UTM easting: typically 100k-900k, northing: typically 0-10M
+        # Check if either coordinate pair matches UTM ranges in either order
+        utm_pattern_1 = (100000 <= abs(coord1) <= 900000 and 0 <= abs(coord2) <= 10000000)
+        utm_pattern_2 = (100000 <= abs(coord2) <= 900000 and 0 <= abs(coord1) <= 10000000)
+        
+        # Check for UTM-like patterns in either coordinate order
+        if utm_pattern_1 or utm_pattern_2:
+            # Additional evidence: zone number (1-60) somewhere in the input
             has_zone_like_number = any(1 <= n <= 60 for n in all_numbers)
             if has_zone_like_number:
                 return True
@@ -276,8 +280,6 @@ class SmartCoordinateParser:
             if _is_valid_lat_lon_pair(coord1, coord2):
                 return False
             return True
-            
-        # Removed overly restrictive check for values > 1000; rely on geographic bounds above
             
         return False
         
