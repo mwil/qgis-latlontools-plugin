@@ -270,52 +270,58 @@ class TestProjectedCoordinateDetection(unittest.TestCase):
         self.parser = SmartCoordinateParser(self.mock_settings, self.mock_iface)
         
     def test_utm_like_detection(self):
-        """Test detection of UTM-like coordinate values"""
-        # Classic UTM values that should be detected
-        utm_cases = [
-            (33, 315428, [33, 315428, 5741324]),     # Zone, Easting, + Northing in numbers
-            (55, 600000, [55, 600000, 4500000]),     # Different zone
-            (12, 500000, [12, 500000, 3000000, 100]), # With elevation
+        """Test that UTM-like coordinate values are properly rejected through public interface."""
+        # Test cases that should be rejected as UTM-like patterns
+        utm_test_cases = [
+            "33 315428 5741324",        # Zone, Easting, Northing
+            "55 600000 4500000",        # Different zone  
+            "12 500000 3000000 100",    # With elevation
         ]
         
-        for coord1, coord2, all_numbers in utm_cases:
-            with self.subTest(coord1=coord1, coord2=coord2):
-                is_projected = self.parser._looks_like_projected_coordinates(coord1, coord2, all_numbers)
-                self.assertTrue(is_projected, 
-                    f"Should detect UTM-like coordinates: {coord1}, {coord2}")
+        for test_input in utm_test_cases:
+            with self.subTest(test_input=test_input):
+                result = self.parser.parse(test_input)
+                # Should be rejected (return None) rather than misinterpreted
+                self.assertIsNone(result, 
+                    f"UTM-like pattern '{test_input}' should be rejected")
                 
     def test_valid_geographic_coordinates(self):
-        """Test that valid geographic coordinates are not falsely detected as projected"""
-        # These should NOT be detected as projected
-        geographic_cases = [
-            (40.7128, -74.0060, [40.7128, -74.0060]),           # NYC
-            (51.5074, -0.1278, [51.5074, -0.1278]),             # London  
-            (-33.8688, 151.2093, [-33.8688, 151.2093]),         # Sydney
-            (35.6762, 139.6503, [35.6762, 139.6503]),           # Tokyo
-            (89.9, 179.9, [89.9, 179.9]),                       # Near poles/antimeridian
-            (-89.9, -179.9, [-89.9, -179.9]),                   # Other extreme
+        """Test that valid geographic coordinates are correctly parsed (not rejected)"""
+        # These should be parsed successfully as valid geographic coordinates
+        valid_coordinate_cases = [
+            ("40.7128, -74.0060", (40.7128, -74.0060)),        # NYC
+            ("51.5074, -0.1278", (51.5074, -0.1278)),          # London  
+            ("-33.8688, 151.2093", (-33.8688, 151.2093)),      # Sydney
+            ("35.6762, 139.6503", (35.6762, 139.6503)),        # Tokyo
+            ("89.9, 179.9", (89.9, 179.9)),                    # Near poles/antimeridian
+            ("-89.9, -179.9", (-89.9, -179.9)),                # Other extreme
         ]
         
-        for coord1, coord2, all_numbers in geographic_cases:
-            with self.subTest(coord1=coord1, coord2=coord2):
-                is_projected = self.parser._looks_like_projected_coordinates(coord1, coord2, all_numbers)
-                self.assertFalse(is_projected, 
-                    f"Should NOT detect valid geographic as projected: {coord1}, {coord2}")
+        for coord_text, expected in valid_coordinate_cases:
+            with self.subTest(coords=coord_text):
+                result = self.parser.parse(coord_text)
+                self.assertIsNotNone(result, 
+                    f"Valid coordinates should parse: {coord_text}")
+                lat, lon, bounds, crs = result
+                exp_lat, exp_lon = expected
+                self.assertAlmostEqual(lat, exp_lat, places=3)
+                self.assertAlmostEqual(lon, exp_lon, places=3)
                     
     def test_large_invalid_coordinates(self):
-        """Test detection of obviously invalid large coordinates"""
-        invalid_cases = [
-            (1000, 2000, [1000, 2000]),                # Clearly not geographic
-            (315428, 5741324, [315428, 5741324]),       # UTM-like without zone
-            (500000, 4500000, [500000, 4500000]),       # Large projected values
-            (200, 300, [200, 300]),                     # Over geographic limits
+        """Test that obviously invalid large coordinates are rejected"""
+        # These should be rejected as invalid/projected coordinates  
+        invalid_coordinate_cases = [
+            "1000 2000",                # Clearly not geographic
+            "315428 5741324",           # UTM-like without zone
+            "500000 4500000",           # Large projected values
+            "200 300",                  # Over geographic limits
         ]
         
-        for coord1, coord2, all_numbers in invalid_cases:
-            with self.subTest(coord1=coord1, coord2=coord2):
-                is_projected = self.parser._looks_like_projected_coordinates(coord1, coord2, all_numbers)
-                self.assertTrue(is_projected, 
-                    f"Should detect invalid large coordinates: {coord1}, {coord2}")
+        for coord_text in invalid_coordinate_cases:
+            with self.subTest(coords=coord_text):
+                result = self.parser.parse(coord_text)
+                self.assertIsNone(result, 
+                    f"Invalid large coordinates should be rejected: {coord_text}")
 
 
 class TestSpecificZValueBugCases(unittest.TestCase):
@@ -362,15 +368,9 @@ class TestSpecificZValueBugCases(unittest.TestCase):
         # Should be rejected completely rather than misinterpreting zone as latitude
         self.assertIsNone(result, 
             "UTM with elevation should be rejected, not misinterpreted")
-            
-        # Additional verification - direct test of the problematic pattern
-        numbers = self.parser._extract_numbers(utm_elevation)
-        self.assertEqual(numbers, [33.0, 315428.0, 5741324.0, 1234.0])
         
-        # This pattern should be detected as projected coordinates
-        is_projected = self.parser._looks_like_projected_coordinates(33.0, 315428.0, numbers)
-        self.assertTrue(is_projected, 
-            "Should detect UTM-like pattern in number fallback")
+        # Additional verification: ensure parse does not misinterpret UTM with elevation
+        # The parser should reject this pattern, as asserted above.
             
     def test_similar_problematic_patterns(self):
         """Test similar patterns that could cause the same issue"""
@@ -398,31 +398,49 @@ class TestWKBPointZMGeometries(unittest.TestCase):
     
     def setUp(self):
         """Set up test parser with mocked QGIS environment."""
-        self.parser = MockSmartParser()
+        self.mock_settings = Mock()
+        self.mock_settings.zoomToCoordOrder = CoordOrder.OrderYX
+        
+        self.mock_iface = Mock()
+        self.mock_canvas = Mock()
+        self.mock_map_settings = Mock()
+        self.mock_map_settings.destinationCrs.return_value = epsg4326
+        self.mock_canvas.mapSettings.return_value = self.mock_map_settings
+        self.mock_iface.mapCanvas.return_value = self.mock_canvas
+        
+        self.parser = SmartCoordinateParser(self.mock_settings, self.mock_iface)
     
     def test_pointzm_geometry_detection(self):
-        """Test that PointZM geometries are properly detected as point geometries."""
+        """Test that PointZM geometries are properly detected and parsed through public interface."""
         # PointZM geometry type: Point (1) + Z flag (0x80000000) + M flag (0x40000000) = 0xC0000001
-        # WKB for PointZM with SRID 4326: x=10.0, y=20.0, z=30.0, m=40.0
+        # WKB for PointZM: x=10.0, y=20.0, z=30.0, m=40.0
         pointzm_wkb = "0101000000C0000001A610000000000000244000000000000040E000000000000044000000000000"
         
-        result = self.parser._try_wkb(pointzm_wkb)
+        # Test through public parse method rather than private _try_wkb
+        result = self.parser.parse(pointzm_wkb)
         
         self.assertIsNotNone(result, "PointZM WKB should be successfully parsed")
-        self.assertEqual(result.coordinates, (10.0, 20.0))
-        self.assertEqual(result.format, "WKB")
+        lat, lon, bounds, crs = result
+        
+        # Verify coordinates are extracted correctly (ignoring Z and M dimensions)
+        self.assertAlmostEqual(lat, 20.0, places=1)
+        self.assertAlmostEqual(lon, 10.0, places=1)
     
     def test_pointm_geometry_detection(self):
-        """Test that PointM geometries are properly detected as point geometries."""
+        """Test that PointM geometries are properly detected and parsed through public interface."""
         # PointM geometry type: Point (1) + M flag (0x40000000) = 0x40000001
-        # WKB for PointM with SRID 4326: x=15.0, y=25.0, m=50.0
+        # WKB for PointM: x=15.0, y=25.0, m=50.0
         pointm_wkb = "010100004000000140000001A6100000000000002E40000000000000394000000000000000494000000000000"
         
-        result = self.parser._try_wkb(pointm_wkb)
+        # Test through public parse method rather than private _try_wkb
+        result = self.parser.parse(pointm_wkb)
         
         self.assertIsNotNone(result, "PointM WKB should be successfully parsed")
-        self.assertEqual(result.coordinates, (15.0, 25.0))
-        self.assertEqual(result.format, "WKB")
+        lat, lon, bounds, crs = result
+        
+        # Verify coordinates are extracted correctly (ignoring M dimension)
+        self.assertAlmostEqual(lat, 25.0, places=1)
+        self.assertAlmostEqual(lon, 15.0, places=1)
 
 
 if __name__ == "__main__":

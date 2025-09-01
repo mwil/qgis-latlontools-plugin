@@ -227,6 +227,11 @@ class SmartCoordinateParser:
     def _looks_like_projected_coordinates(self, coord1, coord2, all_numbers):
         """Detect if coordinates look like UTM/projected values that shouldn't be treated as lat/lon"""
         
+        def _is_valid_lat_lon_pair(c1, c2):
+            """Check if coordinates could be a valid lat/lon pair in either order."""
+            return ((-180 <= c1 <= 180 and -90 <= c2 <= 90) or 
+                    (-180 <= c2 <= 180 and -90 <= c1 <= 90))
+        
         # UTM easting values are typically 100k-900k, northing 0-10M
         # If we see these ranges, it's likely UTM that failed specific parsing
         utm_easting_range = 100000 <= abs(coord2) <= 900000
@@ -241,10 +246,8 @@ class SmartCoordinateParser:
         
         # Large coordinate values that are clearly not geographic
         if abs(coord1) > 180 or abs(coord2) > 180:
-            # Exception: allow obviously valid large longitude in correct range
-            if -180 <= coord1 <= 180 and -90 <= coord2 <= 90:
-                return False
-            if -180 <= coord2 <= 180 and -90 <= coord1 <= 90:
+            # Exception: allow obviously valid lat/lon in either order
+            if _is_valid_lat_lon_pair(coord1, coord2):
                 return False
             return True
             
