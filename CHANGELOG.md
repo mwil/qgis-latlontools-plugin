@@ -8,13 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 
+- **Comprehensive Parser Integration**: SmartCoordinateParser now used consistently across all UI components (zoomToLatLon, digitizer, multizoom)
+- **Cross-Platform Test Support**: Test suites now support Windows, Linux, and macOS with dynamic QGIS path detection
+- **Performance Optimizations**: Pre-compiled regex patterns for improved coordinate parsing performance
+- **Regex Validation Framework**: Comprehensive test suite to prevent regex over-escaping issues
 
 ### Fixed
-- 
+- **WKB 3D Coordinate Parsing**: Fixed critical issue where WKB coordinates failed in zoomToLatLon but worked in other components
+- **Parser Integration Inconsistencies**: All coordinate input components now use SmartCoordinateParser as primary parser with legacy fallback
+- **Regex Over-Escaping Issues**: Fixed multiple regex patterns that would match literal backslashes instead of intended characters
+- **Cross-Platform Compatibility**: Test suites now work across different operating systems and QGIS installations
 
 ### Changed
-- 
+- **Architecture**: Unified coordinate parsing strategy across all UI components for consistency
+- **Testing**: Enhanced test framework with 16 comprehensive tests covering parser integration and regex validation
+- **Error Handling**: Improved logging with QgsMessageLog for better debugging in QGIS environment
+- **Performance**: Optimized regex compilation to reduce repeated pattern compilation overhead
 
 ---
 
