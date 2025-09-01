@@ -307,13 +307,44 @@ class CoordinateConverterWidget(QDockWidget, FORM_CLASS):
                 
 
     def commitWgs84(self):
+        from qgis.core import QgsMessageLog, Qgis
+        
         text = self.wgs84LineEdit.text().strip()
+        QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: STARTING COMMIT for input: '{text}'", "LatLonTools", Qgis.Info)
+        
         try:
+            # First try the smart parser for advanced formats (WKB, WKT, etc.)
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Trying SmartCoordinateParser...", "LatLonTools", Qgis.Info)
+            from .smart_parser import SmartCoordinateParser
+            smart_parser = SmartCoordinateParser(self.settings, self.iface)
+            result = smart_parser.parse(text)
+            
+            if result:
+                lat, lon, bounds, source_crs = result
+                QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: SmartCoordinateParser SUCCESS: lat={lat}, lon={lon}, crs={source_crs}", "LatLonTools", Qgis.Info)
+                pt = QgsPoint(lon, lat)
+                QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Creating QgsPoint({lon}, {lat}) and calling updateCoordinates", "LatLonTools", Qgis.Info)
+                self.updateCoordinates(0, pt, epsg4326)
+                QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: updateCoordinates completed successfully", "LatLonTools", Qgis.Info)
+                return
+            else:
+                QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: SmartCoordinateParser failed, trying fallback...", "LatLonTools", Qgis.Warning)
+            
+            # Fallback to legacy DMS parsing
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Falling back to parseDMSString...", "LatLonTools", Qgis.Info)
             lat, lon = parseDMSString(text, self.inputXYOrder)
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: parseDMSString SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
             pt = QgsPoint(lon, lat)
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Creating QgsPoint({lon}, {lat}) and calling updateCoordinates", "LatLonTools", Qgis.Info)
             self.updateCoordinates(0, pt, epsg4326)
-        except Exception:
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: updateCoordinates completed successfully (fallback)", "LatLonTools", Qgis.Info)
+            
+        except Exception as e:
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: COMMIT FAILED with exception: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
             # traceback.print_exc()
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Calling showInvalid(0)", "LatLonTools", Qgis.Info)
             self.showInvalid(0)
 
     def commitProject(self):

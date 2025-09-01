@@ -38,30 +38,51 @@ class SmartCoordinateParser:
         Main parsing entry point
         Returns: (lat, lon, bounds, source_crs) or None if parsing fails
         """
+        from qgis.core import QgsMessageLog, Qgis
+        
         original_text = text.strip()
+        QgsMessageLog.logMessage(f"SmartParser.parse: STARTING PARSE for input: '{original_text}'", "LatLonTools", Qgis.Info)
         
         try:
             # Phase 1: Explicit formats (WKT, EWKT, WKB)
+            QgsMessageLog.logMessage("SmartParser.parse: === PHASE 1: Trying explicit formats (WKT, EWKT, WKB) ===", "LatLonTools", Qgis.Info)
             result = self._try_explicit_formats(text)
             if result:
                 lat, lon, source_crs, description = result
+                QgsMessageLog.logMessage(f"SmartParser.parse: PHASE 1 SUCCESS - {description}: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return (lat, lon, None, source_crs)
+            else:
+                QgsMessageLog.logMessage("SmartParser.parse: PHASE 1 FAILED - No explicit format match", "LatLonTools", Qgis.Warning)
             
             # Phase 2: Existing formats (MGRS, UTM, etc.)
+            QgsMessageLog.logMessage("SmartParser.parse: === PHASE 2: Trying existing formats (MGRS, UTM, etc.) ===", "LatLonTools", Qgis.Info)
             result = self._try_existing_formats(text)
             if result:
                 lat, lon, bounds, source_crs, description = result
+                QgsMessageLog.logMessage(f"SmartParser.parse: PHASE 2 SUCCESS - {description}: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return (lat, lon, bounds, source_crs)
+            else:
+                QgsMessageLog.logMessage("SmartParser.parse: PHASE 2 FAILED - No existing format match", "LatLonTools", Qgis.Warning)
             
             # Phase 3: Basic coordinate extraction
+            QgsMessageLog.logMessage("SmartParser.parse: === PHASE 3: Trying basic coordinate extraction ===", "LatLonTools", Qgis.Info)
             result = self._extract_and_validate_coordinates(text)
             if result:
                 lat, lon = result[0], result[1]
+                QgsMessageLog.logMessage(f"SmartParser.parse: PHASE 3 SUCCESS - Basic coordinates: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return (lat, lon, None, epsg4326)
+            else:
+                QgsMessageLog.logMessage("SmartParser.parse: PHASE 3 FAILED - No basic coordinate match", "LatLonTools", Qgis.Warning)
                 
-        except Exception:
+        except Exception as e:
             # Failed to parse - let caller handle fallback
+            QgsMessageLog.logMessage(f"SmartParser.parse: EXCEPTION during parsing: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"SmartParser.parse: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
             return None
+            
+        QgsMessageLog.logMessage("SmartParser.parse: COMPLETE FAILURE - No format matched", "LatLonTools", Qgis.Critical)
+        return None
             
     def _try_existing_formats(self, text):
         """
@@ -343,22 +364,42 @@ class SmartCoordinateParser:
     
     def _try_explicit_formats(self, text):
         """Parse WKT, EWKT, and WKB formats"""
+        from qgis.core import QgsMessageLog, Qgis
+        
+        QgsMessageLog.logMessage(f"SmartParser._try_explicit_formats: Starting explicit format parsing", "LatLonTools", Qgis.Info)
+        
         # Try EWKT first
+        QgsMessageLog.logMessage("SmartParser._try_explicit_formats: Trying EWKT...", "LatLonTools", Qgis.Info)
         ewkt_result = self._try_ewkt(text)
         if ewkt_result:
+            QgsMessageLog.logMessage(f"SmartParser._try_explicit_formats: EWKT SUCCESS: {ewkt_result}", "LatLonTools", Qgis.Info)
             return ewkt_result
+        else:
+            QgsMessageLog.logMessage("SmartParser._try_explicit_formats: EWKT failed", "LatLonTools", Qgis.Info)
             
         # Try WKB
+        QgsMessageLog.logMessage("SmartParser._try_explicit_formats: Checking if input looks like WKB...", "LatLonTools", Qgis.Info)
         if self._is_potential_wkb(text):
+            QgsMessageLog.logMessage("SmartParser._try_explicit_formats: Input looks like WKB, trying WKB parsing...", "LatLonTools", Qgis.Info)
             wkb_result = self._try_wkb(text)
             if wkb_result:
+                QgsMessageLog.logMessage(f"SmartParser._try_explicit_formats: WKB SUCCESS: {wkb_result}", "LatLonTools", Qgis.Info)
                 return wkb_result
+            else:
+                QgsMessageLog.logMessage("SmartParser._try_explicit_formats: WKB parsing failed despite looking like WKB!", "LatLonTools", Qgis.Critical)
+        else:
+            QgsMessageLog.logMessage("SmartParser._try_explicit_formats: Input does not look like WKB, skipping WKB parsing", "LatLonTools", Qgis.Info)
                 
         # Try plain WKT
+        QgsMessageLog.logMessage("SmartParser._try_explicit_formats: Trying plain WKT...", "LatLonTools", Qgis.Info)
         wkt_result = self._try_wkt(text)
         if wkt_result:
+            QgsMessageLog.logMessage(f"SmartParser._try_explicit_formats: WKT SUCCESS: {wkt_result}", "LatLonTools", Qgis.Info)
             return wkt_result
+        else:
+            QgsMessageLog.logMessage("SmartParser._try_explicit_formats: WKT failed", "LatLonTools", Qgis.Info)
             
+        QgsMessageLog.logMessage("SmartParser._try_explicit_formats: All explicit formats failed", "LatLonTools", Qgis.Warning)
         return None
         
     def _try_ewkt(self, text):
@@ -382,117 +423,178 @@ class SmartCoordinateParser:
         
     def _try_wkb(self, text):
         """Parse WKB format"""
+        from qgis.core import QgsMessageLog, Qgis
+        
+        QgsMessageLog.logMessage(f"SmartParser._try_wkb: Starting WKB parsing for input: {text[:50]}...", "LatLonTools", Qgis.Info)
+        
         try:
             hex_string = text.replace(' ', '').replace('\n', '').replace('\t', '')
+            QgsMessageLog.logMessage(f"SmartParser._try_wkb: Cleaned hex string: {hex_string[:50]}...", "LatLonTools", Qgis.Info)
+            
             wkb_bytes = bytes.fromhex(hex_string)
+            QgsMessageLog.logMessage(f"SmartParser._try_wkb: Successfully converted to {len(wkb_bytes)} bytes", "LatLonTools", Qgis.Info)
             
             geom = QgsGeometry()
             geom.fromWkb(wkb_bytes)
+            QgsMessageLog.logMessage(f"SmartParser._try_wkb: QGIS geometry created, isEmpty: {geom.isEmpty()}, isNull: {geom.isNull()}", "LatLonTools", Qgis.Info)
             
             # If QGIS parsing succeeded, use it
             if not (geom.isEmpty() or geom.isNull()):
+                QgsMessageLog.logMessage("SmartParser._try_wkb: QGIS parsing succeeded, extracting SRID and coordinates", "LatLonTools", Qgis.Info)
                 import struct
                 byte_order = struct.unpack('<B' if wkb_bytes[0] == 1 else '>B', wkb_bytes[0:1])[0]
                 endian = '<' if byte_order == 1 else '>'
                 geom_type = struct.unpack(f'{endian}I', wkb_bytes[1:5])[0]
+                QgsMessageLog.logMessage(f"SmartParser._try_wkb: Geometry type: 0x{geom_type:08X}", "LatLonTools", Qgis.Info)
                 
                 # Check if SRID flag is set (0x20000000 bit)
                 has_srid = bool(geom_type & 0x20000000)
+                QgsMessageLog.logMessage(f"SmartParser._try_wkb: Has SRID flag: {has_srid}", "LatLonTools", Qgis.Info)
                 
                 if has_srid:
                     # WKB contains SRID, extract it
                     srid = struct.unpack(f'{endian}I', wkb_bytes[5:9])[0]
+                    QgsMessageLog.logMessage(f"SmartParser._try_wkb: Extracted SRID: {srid}", "LatLonTools", Qgis.Info)
                     try:
                         source_crs = QgsCoordinateReferenceSystem(f'EPSG:{srid}')
                         if not source_crs.isValid():
+                            QgsMessageLog.logMessage(f"SmartParser._try_wkb: SRID {srid} not valid, using EPSG:4326", "LatLonTools", Qgis.Warning)
                             source_crs = epsg4326
-                    except Exception:
+                        else:
+                            QgsMessageLog.logMessage(f"SmartParser._try_wkb: Valid CRS created for SRID {srid}", "LatLonTools", Qgis.Info)
+                    except Exception as e:
+                        QgsMessageLog.logMessage(f"SmartParser._try_wkb: Exception creating CRS for SRID {srid}: {e}", "LatLonTools", Qgis.Warning)
                         source_crs = epsg4326
                 else:
+                    QgsMessageLog.logMessage("SmartParser._try_wkb: No SRID flag, using EPSG:4326", "LatLonTools", Qgis.Info)
                     source_crs = epsg4326
                     
-                return self._extract_point_from_geometry(geom, source_crs, "WKB")
+                result = self._extract_point_from_geometry(geom, source_crs, "WKB")
+                QgsMessageLog.logMessage(f"SmartParser._try_wkb: QGIS path result: {result}", "LatLonTools", Qgis.Info)
+                return result
             
             # QGIS parsing failed - try manual parsing for non-standard WKB
-            return self._try_manual_wkb_parsing(wkb_bytes)
+            QgsMessageLog.logMessage("SmartParser._try_wkb: QGIS parsing failed, trying manual parsing", "LatLonTools", Qgis.Warning)
+            result = self._try_manual_wkb_parsing(wkb_bytes)
+            QgsMessageLog.logMessage(f"SmartParser._try_wkb: Manual parsing result: {result}", "LatLonTools", Qgis.Info)
+            return result
             
-        except Exception:
+        except Exception as e:
+            QgsMessageLog.logMessage(f"SmartParser._try_wkb: Exception during WKB parsing: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"SmartParser._try_wkb: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
             return None
 
     def _try_manual_wkb_parsing(self, wkb_bytes):
         """Manual WKB parsing for non-standard formats that QGIS can't handle"""
+        from qgis.core import QgsMessageLog, Qgis
+        
+        QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Starting manual WKB parsing for {len(wkb_bytes)} bytes", "LatLonTools", Qgis.Info)
+        
         try:
             import struct
             
             if len(wkb_bytes) < 21:  # Minimum for Point: 1+4+8+8 = 21 bytes
+                QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Insufficient bytes: {len(wkb_bytes)} < 21", "LatLonTools", Qgis.Warning)
                 return None
                 
             # Parse endianness
             endian = '<' if wkb_bytes[0] == 1 else '>'
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Endianness: {endian}", "LatLonTools", Qgis.Info)
             
             # Parse geometry type (with potential flags)
             geom_type = struct.unpack(f'{endian}I', wkb_bytes[1:5])[0]
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Raw geometry type: 0x{geom_type:08X}", "LatLonTools", Qgis.Info)
             
             # Check flags
             has_srid = bool(geom_type & 0x20000000)
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Has SRID: {has_srid}", "LatLonTools", Qgis.Info)
             
             # Remove SRID flag to get actual geometry type
             actual_geom_type = geom_type & ~0x20000000
             has_z = bool(actual_geom_type & 0x80000000) 
             has_m = bool(actual_geom_type & 0x40000000)
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Has Z: {has_z}, Has M: {has_m}", "LatLonTools", Qgis.Info)
             
             # Get base geometry type
             base_type = actual_geom_type & 0xFF
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Base geometry type: {base_type} (expected: {self.WKB_POINT_TYPE})", "LatLonTools", Qgis.Info)
+            
             if base_type != self.WKB_POINT_TYPE:  # Not a Point
+                QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Not a point geometry: {base_type}", "LatLonTools", Qgis.Warning)
                 return None
                 
             offset = 5  # Start after geometry type
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Starting coordinate parsing at offset {offset}", "LatLonTools", Qgis.Info)
             
             # Parse SRID if present
             srid = None
             if has_srid:
                 if len(wkb_bytes) < offset + 4:
+                    QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Insufficient bytes for SRID at offset {offset}", "LatLonTools", Qgis.Warning)
                     return None
                 srid = struct.unpack(f'{endian}I', wkb_bytes[offset:offset+4])[0]
+                QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Parsed SRID: {srid}", "LatLonTools", Qgis.Info)
                 offset += 4
             
             # Parse coordinates - need at least X, Y (16 bytes)
             coord_size = 16  # X, Y (8 bytes each)
             if has_z:
                 coord_size += 8
+                QgsMessageLog.logMessage("SmartParser._try_manual_wkb_parsing: Adding 8 bytes for Z coordinate", "LatLonTools", Qgis.Info)
             if has_m: 
                 coord_size += 8
+                QgsMessageLog.logMessage("SmartParser._try_manual_wkb_parsing: Adding 8 bytes for M coordinate", "LatLonTools", Qgis.Info)
+                
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Need {coord_size} bytes for coordinates, have {len(wkb_bytes) - offset} remaining", "LatLonTools", Qgis.Info)
                 
             if len(wkb_bytes) < offset + coord_size:
+                QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Insufficient bytes for coordinates: need {coord_size}, have {len(wkb_bytes) - offset}", "LatLonTools", Qgis.Warning)
                 return None
                 
             # Extract coordinates
             x = struct.unpack(f'{endian}d', wkb_bytes[offset:offset+8])[0]
             y = struct.unpack(f'{endian}d', wkb_bytes[offset+8:offset+16])[0]
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Parsed X: {x}, Y: {y}", "LatLonTools", Qgis.Info)
             offset += 16
             
             z = None
             if has_z:
                 z = struct.unpack(f'{endian}d', wkb_bytes[offset:offset+8])[0]
+                QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Parsed Z: {z}", "LatLonTools", Qgis.Info)
                 offset += 8
                 
             # Skip M coordinate if present (we don't use it)
             
-            # Set up CRS
+            # Create CRS - handle PROJ database issues gracefully
+            source_crs = None
             if srid:
+                QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Attempting to create CRS for SRID {srid}", "LatLonTools", Qgis.Info)
                 try:
+                    from qgis.core import QgsCoordinateReferenceSystem
                     source_crs = QgsCoordinateReferenceSystem(f'EPSG:{srid}')
-                    if not source_crs.isValid():
-                        source_crs = epsg4326
-                except Exception:
-                    source_crs = epsg4326
-            else:
-                source_crs = epsg4326
+                    if source_crs.isValid():
+                        QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Valid CRS created for SRID {srid}: {source_crs.authid()}", "LatLonTools", Qgis.Info)
+                    else:
+                        QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: SRID {srid} not valid, will use None CRS", "LatLonTools", Qgis.Warning)
+                        source_crs = None
+                except Exception as e:
+                    QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Exception creating CRS for SRID {srid}: {e}", "LatLonTools", Qgis.Warning)
+                    source_crs = None
+            
+            if source_crs is None:
+                QgsMessageLog.logMessage("SmartParser._try_manual_wkb_parsing: Using None CRS (fallback for PROJ issues)", "LatLonTools", Qgis.Info)
             
             # Return tuple format: (lat, lon, bounds, source_crs) to match other parsing methods
-            return (y, x, None, source_crs)
+            # Use None for CRS if we can't create a valid one due to PROJ database issues
+            result = (y, x, None, source_crs)
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: SUCCESS - Returning: lat={y}, lon={x}, CRS={source_crs.authid() if source_crs and source_crs.isValid() else 'None'}", "LatLonTools", Qgis.Info)
+            return result
             
-        except Exception:
+        except Exception as e:
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Exception during manual parsing: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"SmartParser._try_manual_wkb_parsing: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
             return None
             
     def _try_wkt(self, text):
@@ -574,8 +676,24 @@ class SmartCoordinateParser:
     
     def _is_potential_wkb(self, text):
         """Check if text looks like WKB"""
+        from qgis.core import QgsMessageLog, Qgis
+        
         clean_text = text.replace(' ', '').replace('\n', '').replace('\t', '')
-        return re.match(r'^[0-9A-Fa-f]+$', clean_text) and len(clean_text) >= 20
+        QgsMessageLog.logMessage(f"SmartParser._is_potential_wkb: Checking if '{text[:50]}...' looks like WKB", "LatLonTools", Qgis.Info)
+        QgsMessageLog.logMessage(f"SmartParser._is_potential_wkb: Clean text: '{clean_text[:50]}...', length: {len(clean_text)}", "LatLonTools", Qgis.Info)
+        
+        # Check if it's all hex characters
+        hex_match = re.match(r'^[0-9A-Fa-f]+$', clean_text)
+        is_hex = hex_match is not None
+        QgsMessageLog.logMessage(f"SmartParser._is_potential_wkb: Is valid hex: {is_hex}", "LatLonTools", Qgis.Info)
+        
+        # Check minimum length
+        min_length_ok = len(clean_text) >= 20
+        QgsMessageLog.logMessage(f"SmartParser._is_potential_wkb: Meets minimum length (>= 20): {min_length_ok}", "LatLonTools", Qgis.Info)
+        
+        result = is_hex and min_length_ok
+        QgsMessageLog.logMessage(f"SmartParser._is_potential_wkb: RESULT: {result}", "LatLonTools", Qgis.Info)
+        return result
         
     def _is_complete_wkt(self, wkt_text):
         """Check if WKT geometry is syntactically complete"""

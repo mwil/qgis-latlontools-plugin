@@ -154,42 +154,61 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             self.xyButton.setIcon(self.xyIcon)
 
     def convertCoordinate(self, text):
+        from qgis.core import QgsMessageLog, Qgis
+        
+        QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: STARTING CONVERSION for input: '{text}'", "LatLonTools", Qgis.Info)
+        
         try:
+            # First try the smart parser for modern formats (WKB, WKT, etc.)
+            QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: === TRYING SMART PARSER ===", "LatLonTools", Qgis.Info)
+            from .smart_parser import SmartCoordinateParser
+            smart_parser = SmartCoordinateParser(self.settings, self.iface)
+            result = smart_parser.parse(text)
+            
+            if result:
+                lat, lon, bounds, source_crs = result
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: SMART PARSER SUCCESS: lat={lat}, lon={lon}, bounds={bounds}, crs={source_crs}", "LatLonTools", Qgis.Info)
+                return(lat, lon, bounds, source_crs)
+            else:
+                QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: SMART PARSER FAILED - falling back to legacy parsers", "LatLonTools", Qgis.Warning)
+            
+            # Fall back to legacy format-specific parsing for compatibility
+            QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: === FALLING BACK TO LEGACY PARSERS ===", "LatLonTools", Qgis.Info)
+            
             if self.settings.zoomToProjIsMGRS():
+                QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Trying MGRS (forced by setting)", "LatLonTools", Qgis.Info)
                 # An MGRS coordinate only format has been specified. This will result in an exception
                 # if it is not a valid MGRS coordinate
-                text2 = re.sub(r'\s+', '', str(text))  # Remove all white space
+                text2 = re.sub(r'\\s+', '', str(text))  # Remove all white space
                 lat, lon = mgrs.toWgs(text2)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: MGRS SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, None, epsg4326)
 
+            # Other legacy format checks with minimal logging for brevity
             if self.settings.zoomToProjIsPlusCodes():
-                # A Plus Codes coordinate has been selected. This will result in an exception
-                # if it is not a valid plus codes coordinate.
                 coord = olc.decode(text)
                 lat = coord.latitudeCenter
                 lon = coord.longitudeCenter
                 rect = QgsRectangle(coord.longitudeLo, coord.latitudeLo, coord.longitudeHi, coord.latitudeHi)
                 geom = QgsGeometry.fromRect(rect)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: PLUS CODES SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, geom, epsg4326)
 
             if self.settings.zoomToProjIsStandardUtm():
-                # A Standard UTM coordinate has been selected. This will result in an exception
-                # if it is not a valid utm coordinate.
                 pt = utm2Point(text)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: STANDARD UTM SUCCESS: lat={pt.y()}, lon={pt.x()}", "LatLonTools", Qgis.Info)
                 return(pt.y(), pt.x(), None, epsg4326)
 
             if self.settings.zoomToProjIsGeohash():
-                # A Geohash coordinate has been selected. This will result in an exception
-                # if it is not a valid Geohash coordinate.
                 (lat1, lat2, lon1, lon2) = geohash.decode_extent(text)
                 lat = (lat1 + lat2) / 2
                 lon = (lon1 + lon2) / 2
                 rect = QgsRectangle(lon1, lat1, lon2, lat2)
                 geom = QgsGeometry.fromRect(rect)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: GEOHASH SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, geom, epsg4326)
 
             if self.settings.zoomToProjIsH3():
-                # An H3 coordinate has been selected. 
                 if not h3.is_valid_cell(text):
                     raise ValueError(tr('Invalid H3 Coordinate'))
                 (lat, lon) = h3.cell_to_latlng(text)
@@ -200,74 +219,82 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                     pts.append(pt)
                 pts.append(pts[0])  # Close the polygon
                 geom = QgsGeometry.fromPolylineXY(pts)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: H3 SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, geom, epsg4326)
 
             if self.settings.zoomToProjIsMaidenhead():
-                # A Maidenhead grid coordinate has been selected. This will result in an exception
-                # if it is not a valid maidenhead coordinate.
                 (lat, lon, lat1, lon1, lat2, lon2) = maidenGrid(text)
                 rect = QgsRectangle(lon1, lat1, lon2, lat2)
                 geom = QgsGeometry.fromRect(rect)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: MAIDENHEAD SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(float(lat), float(lon), geom, epsg4326)
 
-            # Check for other formats
+            # Check for other formats (auto-detection)
+            QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Starting auto-detection of formats...", "LatLonTools", Qgis.Info)
+            
             if text[0] == '{':  # This may be a GeoJSON point
+                QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Trying GeoJSON (auto-detected)", "LatLonTools", Qgis.Info)
                 codec = QTextCodec.codecForName("UTF-8")
                 fields = QgsJsonUtils.stringToFields(text, codec)
                 fet = QgsJsonUtils.stringToFeatureList(text, fields, codec)
                 if (len(fet) == 0) or not fet[0].isValid():
+                    QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: GeoJSON parsing failed", "LatLonTools", Qgis.Warning)
                     raise ValueError(tr('Invalid Coordinates'))
 
                 geom = fet[0].geometry()
                 if geom.isEmpty() or (geom.wkbType() != QgsWkbTypes.Point):
+                    QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: GeoJSON geometry invalid", "LatLonTools", Qgis.Warning)
                     raise ValueError(tr('Invalid GeoJSON Geometry'))
                 pt = geom.asPoint()
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: GEOJSON SUCCESS: lat={pt.y()}, lon={pt.x()}", "LatLonTools", Qgis.Info)
                 return(pt.y(), pt.x(), None, epsg4326)
 
             # Check to see if it is standard UTM
+            QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Checking if input is UTM (auto-detect)...", "LatLonTools", Qgis.Info)
             if isUtm(text):
+                QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Detected as UTM, parsing...", "LatLonTools", Qgis.Info)
                 pt = utm2Point(text)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: UTM SUCCESS: lat={pt.y()}, lon={pt.x()}", "LatLonTools", Qgis.Info)
                 return(pt.y(), pt.x(), None, epsg4326)
+            else:
+                QgsMessageLog.logMessage("ZoomToLatLon.convertCoordinate: Not UTM format", "LatLonTools", Qgis.Info)
 
             # Check to see if it is a UPS coordinate
             if isUps(text):
                 pt = ups2Point(text)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: UPS SUCCESS: lat={pt.y()}, lon={pt.x()}", "LatLonTools", Qgis.Info)
                 return(pt.y(), pt.x(), None, epsg4326)
 
-            # Check to see if it is a Georef coordinate
-            try:
-                (lat, lon, prec) = georef.decode(text, False)
-                return(lat, lon, None, epsg4326)
-            except Exception:
-                pass
-
-            # Check to see if it is an MGRS coordinate
-            try:
-                text2 = re.sub(r'\s+', '', str(text))
-                lat, lon = mgrs.toWgs(text2)
-                return(lat, lon, None, epsg4326)
-            except Exception:
-                pass
-
-            # Check to see if it is a plus codes string
-            try:
-                coord = olc.decode(text)
-                lat = coord.latitudeCenter
-                lon = coord.longitudeCenter
-                return(lat, lon, None, epsg4326)
-            except Exception:
-                pass
-
-            # Check to see if it is a geohash string
-            try:
-                (lat, lon, lat_err, lon_err) = geohash.decode_exactly(text)
-                return(lat, lon, None, epsg4326)
-            except Exception:
-                pass
+            # Try other formats with exception handling
+            for format_name, format_func in [
+                ("Georef", lambda: georef.decode(text, False)),
+                ("MGRS", lambda: mgrs.toWgs(re.sub(r'\\s+', '', str(text)))),
+                ("Plus Codes", lambda: olc.decode(text)),
+                ("Geohash", lambda: geohash.decode_exactly(text))
+            ]:
+                try:
+                    if format_name == "Plus Codes":
+                        coord = format_func()
+                        lat = coord.latitudeCenter
+                        lon = coord.longitudeCenter
+                    elif format_name == "Geohash":
+                        (lat, lon, lat_err, lon_err) = format_func()
+                    else:
+                        result = format_func()
+                        if format_name == "Georef":
+                            lat, lon, prec = result
+                        else:  # MGRS
+                            lat, lon = result
+                    
+                    QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: {format_name.upper()} SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+                    return(lat, lon, None, epsg4326)
+                except Exception as e:
+                    QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: {format_name} failed: {e}", "LatLonTools", Qgis.Info)
+                    continue
 
             # Check to see if it is a WKT POINT format
-            if re.search(r'POINT\(', text) is not None:
-                m = re.findall(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)', text)
+            if re.search(r'POINT\\(', text) is not None:
+                m = re.findall(r'POINT\\(\\s*([+-]?\\d*\\.?\\d*)\\s+([+-]?\\d*\\.?\\d*)', text)
                 if len(m) != 1:
                     raise ValueError(tr('Invalid Coordinates'))
                 lon = float(m[0][0])
@@ -278,16 +305,19 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                     srcCrs = self.canvas.mapSettings().destinationCrs()
                 else:
                     srcCrs = self.settings.zoomToCustomCRS()
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: WKT POINT SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, None, srcCrs)
 
             # We are left with either DMS or decimal degrees in one of the projections
             if self.settings.zoomToProjIsWgs84():
                 lat, lon = parseDMSString(text, self.settings.zoomToCoordOrder)
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: WGS84 DMS/DECIMAL SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 return(lat, lon, None, epsg4326)
 
             # We are left with a non WGS 84 decimal projection
-            coords = re.split(r'[\s,;:]+', text, 1)
+            coords = re.split(r'[\\s,;:]+', text, 1)
             if len(coords) < 2:
+                QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: Not enough coordinates found: {coords}", "LatLonTools", Qgis.Warning)
                 raise ValueError(tr('Invalid Coordinates'))
             if self.settings.zoomToCoordOrder == CoordOrder.OrderYX:
                 lat = float(coords[0])
@@ -299,17 +329,60 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                 srcCrs = self.canvas.mapSettings().destinationCrs()
             else:
                 srcCrs = self.settings.zoomToCustomCRS()
+            QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: DECIMAL SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
             return(lat, lon, None, srcCrs)
 
-        except Exception:
-            traceback.print_exc()
+        except Exception as e:
+            QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: CONVERSION FAILED with exception: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
             raise ValueError(tr('Invalid Coordinates'))
         
     def zoomToPressed(self):
+        from qgis.core import QgsMessageLog, Qgis
+        
         try:
             text = self.coordTxt.text().strip()
-            (lat, lon, bounds, srcCrs) = self.convertCoordinate(text)
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Starting zoom for input: '{text}'", "LatLonTools", Qgis.Info)
+            
+            result = self.convertCoordinate(text)
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: convertCoordinate result: {result}", "LatLonTools", Qgis.Info)
+            
+            if result is None:
+                QgsMessageLog.logMessage("ZoomToLatLon.zoomToPressed: convertCoordinate returned None", "LatLonTools", Qgis.Critical)
+                raise ValueError("convertCoordinate returned None")
+                
+            (lat, lon, bounds, srcCrs) = result
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Unpacked coordinates: lat={lat}, lon={lon}, bounds={bounds}, srcCrs={srcCrs}", "LatLonTools", Qgis.Info)
+            
+            # Validate coordinates
+            if lat is None or lon is None:
+                QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Invalid coordinates: lat={lat}, lon={lon}", "LatLonTools", Qgis.Critical)
+                raise ValueError("Invalid coordinates")
+                
+            # Handle CRS - assume WGS84 if CRS is None or invalid (due to PROJ database issues)
+            if srcCrs is None or not (hasattr(srcCrs, 'isValid') and srcCrs.isValid()):
+                QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Invalid/None CRS: {srcCrs}, assuming WGS84 coordinates", "LatLonTools", Qgis.Warning)
+                try:
+                    from qgis.core import QgsCoordinateReferenceSystem
+                    srcCrs = QgsCoordinateReferenceSystem('EPSG:4326')
+                    if not srcCrs.isValid():
+                        QgsMessageLog.logMessage("ZoomToLatLon.zoomToPressed: Even EPSG:4326 creation failed, using None (direct coordinates)", "LatLonTools", Qgis.Critical)
+                        srcCrs = None
+                except Exception as e:
+                    QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Exception creating EPSG:4326: {e}", "LatLonTools", Qgis.Critical)
+                    srcCrs = None
+            
+            # Special handling for PROJ database issues - pass None CRS to let zoomTo handle it
+            if srcCrs is None:
+                QgsMessageLog.logMessage("ZoomToLatLon.zoomToPressed: Using None CRS - letting zoomTo handle coordinate system", "LatLonTools", Qgis.Warning)
+            else:
+                QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Using CRS: {srcCrs.authid()}", "LatLonTools", Qgis.Info)
+            
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: About to call lltools.zoomTo with srcCrs={srcCrs}, lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
             pt = self.lltools.zoomTo(srcCrs, lat, lon)
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: zoomTo returned point: {pt}", "LatLonTools", Qgis.Info)
+            
             self.marker.reset(QgsWkbTypes.PointGeometry)
             self.marker.setWidth(settings.markerWidth)
             self.marker.setIconSize(settings.markerSize)
@@ -321,12 +394,17 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             self.line_marker.setColor(settings.gridColor)
             if bounds and self.settings.showGrid:
                 canvas_crs = self.canvas.mapSettings().destinationCrs()
-                if srcCrs != canvas_crs:
+                if srcCrs and srcCrs != canvas_crs:
                     trans = QgsCoordinateTransform(srcCrs, canvas_crs, QgsProject.instance())
                     bounds.transform(trans)
                 self.line_marker.addGeometry(bounds, None)
-        except Exception:
-            traceback.print_exc()
+                
+            QgsMessageLog.logMessage("ZoomToLatLon.zoomToPressed: Zoom operation completed successfully", "LatLonTools", Qgis.Info)
+            
+        except Exception as e:
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Exception during zoom: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"ZoomToLatLon.zoomToPressed: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
             self.iface.messageBar().pushMessage("", tr("Invalid Coordinate"), level=Qgis.Warning, duration=2)
             return
 
