@@ -489,8 +489,8 @@ class SmartCoordinateParser:
             else:
                 source_crs = epsg4326
             
-            # Return tuple format like other parsing methods
-            return (y, x, z, source_crs)
+            # Return tuple format: (lat, lon, bounds, source_crs) to match other parsing methods
+            return (y, x, None, source_crs)
             
         except Exception:
             return None

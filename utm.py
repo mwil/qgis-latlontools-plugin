@@ -31,28 +31,28 @@ def utmParse(utm_str):
     # Handle UTM with elevation: "33N 315428 5741324 1234" or "33 N 315428 5741324 1234m"
     m = re.match(r'(\d+)\s*([NS])\s+(\d+\.?\d*)\s+(\d+\.?\d*)\s+(\d+\.?\d*)', utm)
     if m:
-        zone = int(m[0])
+        zone = int(m.group(1))
         if zone < 1 or zone > 60:
             raise UtmException(tr('Invalid UTM Coordinate'))
-        hemisphere = m[1]
+        hemisphere = m.group(2)
         if hemisphere != 'N' and hemisphere != 'S':
             raise UtmException(tr('Invalid UTM Coordinate'))
-        easting = float(m[2])
-        northing = float(m[3])
-        # Ignore elevation (m[4])
+        easting = float(m.group(3))
+        northing = float(m.group(4))
+        # Ignore elevation (m.group(5))
         return(zone, hemisphere, easting, northing)
     
     # Standard UTM without elevation: "33 N 315428 5741324"
     m = re.match(r'(\d+)\s*([NS])\s+(\d+\.?\d*)\s+(\d+\.?\d*)', utm)
     if m:
-        zone = int(m[0])
+        zone = int(m.group(1))
         if zone < 1 or zone > 60:
             raise UtmException(tr('Invalid UTM Coordinate'))
-        hemisphere = m[1]
+        hemisphere = m.group(2)
         if hemisphere != 'N' and hemisphere != 'S':
             raise UtmException(tr('Invalid UTM Coordinate'))
-        easting = float(m[2])
-        northing = float(m[3])
+        easting = float(m.group(3))
+        northing = float(m.group(4))
         return(zone, hemisphere, easting, northing)
     
     # Handle alternative formats with elevation: "315428mE 5741324mN 33N 1234m" 
@@ -82,14 +82,14 @@ def utmParse(utm_str):
         if m is None:
             m = re.match(r'(\d+\.?\d*)\s*M\s*E\s*,\s*(\d+\.?\d*)\s*M\s*N\s*,\s*(\d+)\s*,\s*([NS])', utm)
     if m:
-        zone = int(m[2])
+        zone = int(m.group(3))
         if zone < 1 or zone > 60:
             raise UtmException(tr('Invalid UTM Coordinate'))
-        hemisphere = m[3]
+        hemisphere = m.group(4)
         if hemisphere != 'N' and hemisphere != 'S':
             raise UtmException(tr('Invalid UTM Coordinate'))
-        easting = float(m[0])
-        northing = float(m[1])
+        easting = float(m.group(1))
+        northing = float(m.group(2))
         return(zone, hemisphere, easting, northing)
     
     raise UtmException('Invalid UTM Coordinate')

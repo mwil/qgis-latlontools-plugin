@@ -414,9 +414,9 @@ class TestWKBPointZMGeometries(unittest.TestCase):
         # C0000001 - Geometry type (PointZM = 0xC0000001)
         # 0000000000002440 - X coordinate (10.0 as IEEE 754 double)
         # 0000000000003440 - Y coordinate (20.0 as IEEE 754 double) 
-        # 0000000000003440 - Z coordinate (30.0 as IEEE 754 double)
+        # 0000000000003E40 - Z coordinate (30.0 as IEEE 754 double)
         # 0000000000004440 - M coordinate (40.0 as IEEE 754 double)
-        pointzm_wkb = "01C000000100000000000024400000000000003440000000000000344000000000000044400"
+        pointzm_wkb = "01010000C0000000000000244000000000000034400000000000003E400000000000004440"
         
         # Test through public parse method rather than private _try_wkb
         result = self.parser.parse(pointzm_wkb)
@@ -437,7 +437,7 @@ class TestWKBPointZMGeometries(unittest.TestCase):
         # 0000000000002E40 - X coordinate (15.0 as IEEE 754 double)
         # 0000000000003940 - Y coordinate (25.0 as IEEE 754 double)
         # 0000000000004940 - M coordinate (50.0 as IEEE 754 double)
-        pointm_wkb = "01010000400000000000000000002E4000000000000039400000000000004940"
+        pointm_wkb = "01010000400000000000002E4000000000000039400000000000004940"
         
         # Test through public parse method rather than private _try_wkb
         result = self.parser.parse(pointm_wkb)
