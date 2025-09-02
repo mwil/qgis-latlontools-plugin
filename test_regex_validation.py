@@ -277,7 +277,6 @@ class TestRegexEscapingValidation(unittest.TestCase):
         # ✅ r'POINT\(' (correct) - matches literal "POINT("
         # ✅ r'[\s,;:]+' (correct) - matches whitespace, comma, semicolon, colon
         
-        import unittest
         raise unittest.SkipTest(
             "Manual inspection confirmed all regex patterns are correctly escaped. "
             "All codebase patterns use proper single backslash escaping in raw strings."
