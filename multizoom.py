@@ -27,6 +27,8 @@ from .settings import CoordOrder, settings
 from . import mgrs
 from . import olc
 
+from .parser_service import parse_coordinate_with_service
+
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/multiZoomDialog.ui'))
 
@@ -333,104 +335,108 @@ class MultiZoomWidget(QDockWidget, FORM_CLASS):
         
         QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: Processing input: '{full_text}' ({numFields} parts)", "LatLonTools", Qgis.Info)
         
+        def legacy_fallback(text):
+            """Legacy parsing fallback with format-specific logic"""
+            QgsMessageLog.logMessage("MultiZoom.addSingleCoord: Using legacy coordinate parsing...", "LatLonTools", Qgis.Info)
+            
+            if self.settings.multiZoomToProjIsMGRS():
+                '''Check to see if we have an MGRS coordinate for entry'''
+                lat, lon = mgrs.toWgs(re.sub(r'\\s+', '', parts[0]))
+                if numFields >= 2:
+                    label = parts[1]
+                if numFields >= 3:
+                    data = parts[2:]
+            elif self.settings.multiZoomToProjIsPlusCodes():
+                coord = olc.decode(parts[0])
+                lat = coord.latitudeCenter
+                lon = coord.longitudeCenter
+                if numFields >= 2:
+                    label = parts[1]
+                if numFields >= 3:
+                    data = parts[2:]
+            elif self.settings.multiZoomToProjIsUtm():
+                pt = utm2Point(parts[0])
+                lat = pt.y()
+                lon = pt.x()
+                if numFields >= 2:
+                    label = parts[1]
+                if numFields >= 3:
+                    data = parts[2:]
+            elif numFields == 1:
+                '''Perhaps the user forgot to add the comma separator. Check to see
+                   if there are two coordinates anyway.'''
+                if self.settings.multiZoomToProjIsWgs84():
+                    lat, lon = parseDMSString(parts[0], self.settings.multiCoordOrder)
+                else:
+                    parts_split = re.split(r'[\\s;:]+', parts[0], 1)
+                    if len(parts_split) < 2:
+                        raise ValueError("Invalid Coordinate")
+                    srcCrs = self.settings.multiZoomToCRS()
+                    transform = QgsCoordinateTransform(srcCrs, epsg4326, QgsProject.instance())
+                    if self.settings.multiCoordOrder == CoordOrder.OrderYX:
+                        lon, lat = transform.transform(float(parts_split[1]), float(parts_split[0]))
+                    else:
+                        lon, lat = transform.transform(float(parts_split[0]), float(parts_split[1]))
+            elif numFields >= 2:
+                if self.settings.multiZoomToProjIsWgs84():
+                    '''Combine the coordinates back together and use parseDMSString
+                       as it is more robust than parseDMSStringSingle.'''
+                    str = "{}, {}".format(parts[0], parts[1])
+                    lat, lon = parseDMSString(str, self.settings.multiCoordOrder)
+                else:
+                    srcCrs = self.settings.multiZoomToCRS()
+                    transform = QgsCoordinateTransform(srcCrs, epsg4326, QgsProject.instance())
+                    if self.settings.multiCoordOrder == CoordOrder.OrderYX:
+                        lon, lat = transform.transform(float(parts[1]), float(parts[0]))
+                    else:
+                        lon, lat = transform.transform(float(parts[0]), float(parts[1]))
+                if numFields >= 3:
+                    label = parts[2]
+                if numFields >= 4:
+                    data = parts[3:]
+            else:
+                raise ValueError("Invalid Coordinate")
+                
+            QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: Legacy parsing SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+            # Return in service format: (lat, lon, bounds, source_crs)
+            return (lat, lon, None, epsg4326)
+        
         try:
             # First try the smart parser for modern formats (WKB, WKT, etc.)
             # But only if it looks like a single coordinate (not comma-separated fields with labels)
-            if numFields == 1 or not any(self.settings.multiZoomToProjIsMGRS(), 
+            if numFields == 1 or not any([self.settings.multiZoomToProjIsMGRS(), 
                                         self.settings.multiZoomToProjIsPlusCodes(),
-                                        self.settings.multiZoomToProjIsUtm()):
-                QgsMessageLog.logMessage("MultiZoom.addSingleCoord: Trying SmartCoordinateParser...", "LatLonTools", Qgis.Info)
-                from .smart_parser import SmartCoordinateParser
-                smart_parser = SmartCoordinateParser(self.settings, self.iface)
-                result = smart_parser.parse(parts[0])  # Try parsing the first part as a coordinate
+                                        self.settings.multiZoomToProjIsUtm()]):
+                # Use parser service with fallback
+                result = parse_coordinate_with_service(parts[0], "MultiZoom", self.settings, self.iface, legacy_fallback)
                 
                 if result:
                     lat, lon, bounds, source_crs = result
-                    QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: SmartCoordinateParser SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+                    QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: Parser service SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                     # Extract label and data from remaining parts
                     if numFields >= 2:
                         label = parts[1]
                     if numFields >= 3:
                         data = parts[2:]
                 else:
-                    QgsMessageLog.logMessage("MultiZoom.addSingleCoord: SmartCoordinateParser failed, using legacy parsing...", "LatLonTools", Qgis.Info)
-                    raise ValueError("Smart parser failed, falling back")
+                    QgsMessageLog.logMessage("MultiZoom.addSingleCoord: Parser service failed", "LatLonTools", Qgis.Warning)
+                    self.iface.messageBar().pushMessage("", tr("Invalid Coordinate. Perhaps comma separators between fields were not used."), level=Qgis.Warning, duration=3)
+                    return
             else:
                 QgsMessageLog.logMessage("MultiZoom.addSingleCoord: Using legacy parsing due to format settings...", "LatLonTools", Qgis.Info)
-                raise ValueError("Using legacy parsing")
-                
-        except Exception:
-            # Fall back to legacy format-specific parsing
-            QgsMessageLog.logMessage("MultiZoom.addSingleCoord: Using legacy coordinate parsing...", "LatLonTools", Qgis.Info)
-            
-            try:
-                if self.settings.multiZoomToProjIsMGRS():
-                    '''Check to see if we have an MGRS coordinate for entry'''
-                    lat, lon = mgrs.toWgs(re.sub(r'\s+', '', parts[0]))
-                    if numFields >= 2:
-                        label = parts[1]
-                    if numFields >= 3:
-                        data = parts[2:]
-                elif self.settings.multiZoomToProjIsPlusCodes():
-                    coord = olc.decode(parts[0])
-                    lat = coord.latitudeCenter
-                    lon = coord.longitudeCenter
-                    if numFields >= 2:
-                        label = parts[1]
-                    if numFields >= 3:
-                        data = parts[2:]
-                elif self.settings.multiZoomToProjIsUtm():
-                    pt = utm2Point(parts[0])
-                    lat = pt.y()
-                    lon = pt.x()
-                    if numFields >= 2:
-                        label = parts[1]
-                    if numFields >= 3:
-                        data = parts[2:]
-                elif numFields == 1:
-                    '''Perhaps the user forgot to add the comma separator. Check to see
-                       if there are two coordinates anyway.'''
-                    if self.settings.multiZoomToProjIsWgs84():
-                        lat, lon = parseDMSString(parts[0], self.settings.multiCoordOrder)
-                    else:
-                        parts = re.split(r'[\s;:]+', parts[0], 1)
-                        if len(parts) < 2:
-                            self.iface.messageBar().pushMessage("", tr("Invalid Coordinate."), level=Qgis.Warning, duration=3)
-                            return
-                        srcCrs = self.settings.multiZoomToCRS()
-                        transform = QgsCoordinateTransform(srcCrs, epsg4326, QgsProject.instance())
-                        if self.settings.multiCoordOrder == CoordOrder.OrderYX:
-                            lon, lat = transform.transform(float(parts[1]), float(parts[0]))
-                        else:
-                            lon, lat = transform.transform(float(parts[0]), float(parts[1]))
-                elif numFields >= 2:
-                    if self.settings.multiZoomToProjIsWgs84():
-                        '''Combine the coordinates back together and use parseDMSString
-                           as it is more robust than parseDMSStringSingle.'''
-                        str = "{}, {}".format(parts[0], parts[1])
-                        lat, lon = parseDMSString(str, self.settings.multiCoordOrder)
-                    else:
-                        srcCrs = self.settings.multiZoomToCRS()
-                        transform = QgsCoordinateTransform(srcCrs, epsg4326, QgsProject.instance())
-                        if self.settings.multiCoordOrder == CoordOrder.OrderYX:
-                            lon, lat = transform.transform(float(parts[1]), float(parts[0]))
-                        else:
-                            lon, lat = transform.transform(float(parts[0]), float(parts[1]))
-                    if numFields >= 3:
-                        label = parts[2]
-                    if numFields >= 4:
-                        data = parts[3:]
+                # Use legacy fallback directly for format-specific parsing
+                result = legacy_fallback(full_text)
+                if result:
+                    lat, lon, bounds, source_crs = result
                 else:
-                    self.iface.messageBar().pushMessage("", tr("Invalid Coordinate."), level=Qgis.Warning, duration=3)
-                    return
-                    
-                QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: Legacy parsing SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
-                    
-            except Exception as e:
-                QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: Legacy parsing failed: {e}", "LatLonTools", Qgis.Critical)
-                if self.addLineEdit.text():
                     self.iface.messageBar().pushMessage("", tr("Invalid Coordinate. Perhaps comma separators between fields were not used."), level=Qgis.Warning, duration=3)
-                return
+                    return
+                
+        except Exception as e:
+            QgsMessageLog.logMessage(f"MultiZoom.addSingleCoord: Parsing failed: {e}", "LatLonTools", Qgis.Critical)
+            if self.addLineEdit.text():
+                self.iface.messageBar().pushMessage("", tr("Invalid Coordinate. Perhaps comma separators between fields were not used."), level=Qgis.Warning, duration=3)
+            return
                 
         newrow = self.addCoord(lat, lon, label, data)
         self.addLineEdit.clear()

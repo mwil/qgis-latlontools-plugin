@@ -20,10 +20,35 @@ This is the "Lat Lon Tools" plugin for QGIS, providing comprehensive coordinate 
 - Compiled automatically during deployment to `.qm` files
 
 ### Testing Workflow
-- User always runs QGIS for testing
-- No automated test suite - manual testing required through QGIS interface
-- Plugin Reloader tool is available for development - use this to reload plugin changes without restarting QGIS
+- **Comprehensive test suite available** - Use `python3 run_all_tests.py` to run all tests
+- **Mixed testing approach**:
+  - Standalone tests (no QGIS required): `python3 run_all_tests.py --type standalone`
+  - Service layer tests (QGIS required): `python3 run_all_tests.py --type service`
+  - Validation tests (QGIS required): `python3 run_all_tests.py --type validation` 
+  - Integration tests (QGIS required): `python3 run_all_tests.py --type integration`
+- **Fast mode available**: `python3 run_all_tests.py --fast` (skips slow integration tests)
+- **Cross-platform QGIS detection**: Test runner automatically detects QGIS installation on macOS/Windows/Linux
+- **Manual testing still important**: Plugin Reloader tool available for development
 - After deployment with `make deploy`, use Plugin Reloader to refresh the plugin
+
+### Test Structure
+```
+tests/
+├── unit/                          # Standalone tests (no QGIS)
+│   ├── test_pattern_detection.py
+│   └── test_smart_parser_simple.py
+├── integration/                   # QGIS-dependent integration tests
+│   ├── test_service_layer_integration.py
+│   └── test_comprehensive_parser_regression.py
+├── validation/                    # QGIS-dependent validation tests
+│   ├── test_regex_validation.py
+│   ├── test_z_coordinate_handling.py
+│   ├── test_coordinate_flipping_comprehensive.py
+│   ├── test_real_world_coordinate_scenarios.py
+│   ├── test_smart_parser_validation.py
+│   └── test_comprehensive_edge_cases.py
+└── run_all_tests.py              # Unified test runner
+```
 
 ## Release Management
 
@@ -113,6 +138,28 @@ latlontools-3.7.5.zip
 - **Settings** (`settings.py`) - Configuration dialog and settings management
 - **Processing Provider** (`provider.py`, `latLonToolsProcessing.py`) - QGIS Processing framework integration
 
+### Service Layer Architecture (Phase 2 - Completed)
+
+The plugin implements a centralized service layer for coordinate parsing, eliminating code duplication and providing consistent functionality across all UI components.
+
+**Core Service Components:**
+- **CoordinateParserService** (`parser_service.py`) - Singleton service managing SmartCoordinateParser instances
+- **CoordinateParserMixin** - Mixin class for UI components needing parser functionality  
+- **parse_coordinate_with_service()** - Convenience function for components that can't use mixin pattern
+
+**Service Layer Benefits:**
+- **Centralized parsing logic**: Single point of truth for coordinate parsing
+- **Singleton pattern**: Thread-safe, fork-safe parser instance management
+- **Fallback mechanisms**: Graceful degradation with legacy parsing functions
+- **Consistent logging**: Centralized error handling and component-specific logging
+- **Minimal refactoring**: Fork-safe approach preserving upstream compatibility
+
+**UI Integration Status (✅ All Complete):**
+- **coordinateConverter.py**: Uses `parse_coordinate_with_service()` in `commitWgs84()`
+- **digitizer.py**: Uses service layer in `addFeature()` with projection-specific parsing
+- **multizoom.py**: Uses service layer in `addSingleCoord()` for multi-location zoom
+- **zoomToLatLon.py**: Uses service layer in `convertCoordinate()` with comprehensive fallback
+
 ### Coordinate System Modules
 Each coordinate system has a dedicated module: `utm.py`, `ups.py`, `mgrs.py`, `pluscodes.py`/`olc.py`, `geohash.py`, `maidenhead.py`, `georef.py`, `ecef.py`
 
@@ -147,8 +194,14 @@ Conversion utilities in separate modules: `field2geom.py`, `geom2field.py`, `mgr
 ## Development Notes
 
 ### Testing
-- **No automated test suite** - manual testing required
-- Test with various coordinate formats and edge cases
+- **Comprehensive automated test suite available** - Run `python3 run_all_tests.py`
+- **Test Categories**:
+  - Unit tests: Pattern detection, parser logic (no QGIS required)
+  - Service layer tests: Singleton pattern, UI integration (QGIS required)
+  - Validation tests: Regex patterns, coordinate handling (QGIS required)  
+  - Integration tests: End-to-end coordinate parsing (QGIS required)
+- **Cross-platform support**: Automatic QGIS environment detection (macOS/Windows/Linux)
+- **Manual testing still recommended**: Test with various coordinate formats and edge cases
 - Test in different QGIS environments and CRS settings
 - Verify processing algorithms work in QGIS Processing toolbox
 
@@ -168,7 +221,9 @@ Conversion utilities in separate modules: `field2geom.py`, `geom2field.py`, `mgr
 When completing development tasks:
 1. Follow existing code style and QGIS plugin conventions
 2. Handle coordinate format edge cases and invalid inputs
-3. Manual testing required (no automated tests available)
-4. Run `make deploy` for local testing
-5. Consider internationalization for user-facing strings
-6. Update documentation if adding significant features
+3. **Run comprehensive test suite**: `python3 run_all_tests.py` (validates service layer integration)
+4. **Use service layer for coordinate parsing**: Import `parse_coordinate_with_service` instead of directly instantiating SmartCoordinateParser
+5. Run `make deploy` for local testing
+6. Consider internationalization for user-facing strings
+7. Update documentation if adding significant features
+8. **Service layer components should use**: `from .parser_service import parse_coordinate_with_service` and provide fallback functions when needed
