@@ -8,13 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- 
+- **Service Layer Architecture**: Centralized coordinate parsing service with singleton pattern eliminating 15+ line code duplication across UI components
+- **Try-Parse Architecture**: Exception-based parsing using mature coordinate libraries instead of error-prone regex pre-validation
+- **Comprehensive Test Infrastructure**: Unified test runner with cross-platform QGIS detection supporting standalone, service, validation, and integration tests
+- **Enhanced Coordinate Format Support**: Optimal strategy ordering by format signature strength to minimize collision risk
 
 ### Fixed
-- 
+- **Critical UTM Misclassification Bug**: UTM coordinates like `500000 4500000 1000` are no longer incorrectly parsed as DMS coordinates
+- **Service Layer Integration**: All UI components (coordinateConverter, digitizer, multizoom, zoomToLatLon) now use centralized parser service
+- **Python Syntax Errors**: Fixed critical indentation errors preventing code execution after refactoring
 
-### Changed
-- 
+### Changed  
+- **Fundamental Architecture Shift**: From regex pre-validation to mature library validation with exception handling
+- **Parser Strategy Pattern**: Simplified base class with direct parsing, no complex `can_parse()` methods
+- **Enhanced Validation Logic**: Added projected coordinate detection and UTM pattern recognition to prevent false positives
 
 ---
 
