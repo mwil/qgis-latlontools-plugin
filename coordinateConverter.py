@@ -32,6 +32,7 @@ from . import georef
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/coordinateConverter.ui'))
 
+from .parser_service import parse_coordinate_with_service
 s_invalid = tr('Invalid')
 s_copied = tr('copied to the clipboard')
 
@@ -312,38 +313,32 @@ class CoordinateConverterWidget(QDockWidget, FORM_CLASS):
         text = self.wgs84LineEdit.text().strip()
         QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: STARTING COMMIT for input: '{text}'", "LatLonTools", Qgis.Info)
         
+        def legacy_fallback(text):
+            """Legacy parsing fallback using parseDMSString"""
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Falling back to parseDMSString...", "LatLonTools", Qgis.Info)
+            lat, lon = parseDMSString(text, self.inputXYOrder)
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: parseDMSString SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+            # Return in service format: (lat, lon, bounds, source_crs)
+            return (lat, lon, None, epsg4326)
+        
         try:
-            # First try the smart parser for advanced formats (WKB, WKT, etc.)
-            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Trying SmartCoordinateParser...", "LatLonTools", Qgis.Info)
-            from .smart_parser import SmartCoordinateParser
-            smart_parser = SmartCoordinateParser(self.settings, self.iface)
-            result = smart_parser.parse(text)
+            # Use parser service with fallback
+            result = parse_coordinate_with_service(text, "CoordinateConverter", self.settings, self.iface, legacy_fallback)
             
             if result:
                 lat, lon, bounds, source_crs = result
-                QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: SmartCoordinateParser SUCCESS: lat={lat}, lon={lon}, crs={source_crs}", "LatLonTools", Qgis.Info)
                 pt = QgsPoint(lon, lat)
                 QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Creating QgsPoint({lon}, {lat}) and calling updateCoordinates", "LatLonTools", Qgis.Info)
                 self.updateCoordinates(0, pt, epsg4326)
                 QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: updateCoordinates completed successfully", "LatLonTools", Qgis.Info)
-                return
             else:
-                QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: SmartCoordinateParser failed, trying fallback...", "LatLonTools", Qgis.Warning)
-            
-            # Fallback to legacy DMS parsing
-            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Falling back to parseDMSString...", "LatLonTools", Qgis.Info)
-            lat, lon = parseDMSString(text, self.inputXYOrder)
-            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: parseDMSString SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
-            pt = QgsPoint(lon, lat)
-            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Creating QgsPoint({lon}, {lat}) and calling updateCoordinates", "LatLonTools", Qgis.Info)
-            self.updateCoordinates(0, pt, epsg4326)
-            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: updateCoordinates completed successfully (fallback)", "LatLonTools", Qgis.Info)
-            
+                QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: All parsing methods failed", "LatLonTools", Qgis.Warning)
+                self.showInvalid(0)
+                
         except Exception as e:
             QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: COMMIT FAILED with exception: {e}", "LatLonTools", Qgis.Critical)
             import traceback
             QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
-            # traceback.print_exc()
             QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Calling showInvalid(0)", "LatLonTools", Qgis.Info)
             self.showInvalid(0)
 

@@ -24,6 +24,8 @@ from . import mgrs
 from . import olc
 from .utm import utm2Point
 
+from .parser_service import parse_coordinate_with_service
+
 FORM_CLASS, _ = loadUiType(os.path.join(
     os.path.dirname(__file__), 'ui/digitizer.ui'))
 
@@ -92,6 +94,7 @@ class DigitizerWidget(QDialog, FORM_CLASS):
 
     def addFeature(self):
         from qgis.core import QgsMessageLog, Qgis
+        from .settings import Settings
         
         text = self.lineEdit.text().strip()
         if text == "":
@@ -102,89 +105,92 @@ class DigitizerWidget(QDialog, FORM_CLASS):
             
         QgsMessageLog.logMessage(f"Digitizer.addFeature: Processing input: '{text}'", "LatLonTools", Qgis.Info)
         
-        try:
-            # First try the smart parser for modern formats (WKB, WKT, etc.)
-            QgsMessageLog.logMessage("Digitizer.addFeature: Trying SmartCoordinateParser...", "LatLonTools", Qgis.Info)
-            from .smart_parser import SmartCoordinateParser
-            from .settings import Settings
+        def legacy_fallback(text):
+            """Legacy parsing fallback with projection-based logic"""
+            QgsMessageLog.logMessage("Digitizer.addFeature: Using legacy parsing fallback...", "LatLonTools", Qgis.Warning)
             
-            # Create a settings object for the parser
+            # Fall back to legacy parsing logic based on input projection setting
+            if (self.inputProjection == 0) or (text[0] == '{'):
+                # If this is GeoJson it does not matter what inputProjection is
+                if text[0] == '{':  # This may be a GeoJSON point
+                    codec = QTextCodec.codecForName("UTF-8")
+                    fields = QgsJsonUtils.stringToFields(text, codec)
+                    fet = QgsJsonUtils.stringToFeatureList(text, fields, codec)
+                    if (len(fet) == 0) or not fet[0].isValid():
+                        raise ValueError(tr('Invalid Coordinates'))
+
+                    geom = fet[0].geometry()
+                    if geom.isEmpty() or (geom.wkbType() != QgsWkbTypes.Point):
+                        raise ValueError(tr('Invalid GeoJSON Geometry'))
+                    pt = geom.asPoint()
+                    lat = pt.y()
+                    lon = pt.x()
+                elif re.search(r'POINT\\(', text) is not None:
+                    m = re.findall(r'POINT\\(\\s*([+-]?\\d*\\.?\\d*)\\s+([+-]?\\d*\\.?\\d*)', text)
+                    if len(m) != 1:
+                        raise ValueError(tr('Invalid Coordinates'))
+                    lon = float(m[0][0])
+                    lat = float(m[0][1])
+                else:
+                    lat, lon = parseDMSString(text, self.inputXYOrder)
+                srcCrs = epsg4326
+            elif self.inputProjection == 1:
+                # This is an MGRS coordinate
+                text = re.sub(r'\\s+', '', text)  # Remove all white space
+                lat, lon = mgrs.toWgs(text)
+                srcCrs = epsg4326
+            elif self.inputProjection == 4:
+                text = text.strip()
+                coord = olc.decode(text)
+                lat = coord.latitudeCenter
+                lon = coord.longitudeCenter
+                srcCrs = epsg4326
+            elif self.inputProjection == 5:
+                text = text.strip()
+                pt = utm2Point(text, epsg4326)
+                lat = pt.y()
+                lon = pt.x()
+                srcCrs = epsg4326
+            else:  # Is either the project or custom CRS
+                if re.search(r'POINT\\(', text) is None:
+                    coords = re.split(r'[\\s,;:]+', text, 1)
+                    if len(coords) < 2:
+                        raise ValueError('Invalid Coordinates')
+                    if self.inputXYOrder == 0:  # Y, X Order
+                        lat = float(coords[0])
+                        lon = float(coords[1])
+                    else:
+                        lon = float(coords[0])
+                        lat = float(coords[1])
+                else:
+                    m = re.findall(r'POINT\\(\\s*([+-]?\\d*\\.?\\d*)\\s+([+-]?\\d*\\.?\\d*)', text)
+                    if len(m) != 1:
+                        raise ValueError(tr('Invalid Coordinates'))
+                    lon = float(m[0][0])
+                    lat = float(m[0][1])
+                if self.inputProjection == 2:  # Project CRS
+                    srcCrs = self.canvas.mapSettings().destinationCrs()
+                else:
+                    srcCrs = QgsCoordinateReferenceSystem(self.inputCustomCRS)
+            
+            QgsMessageLog.logMessage(f"Digitizer.addFeature: Legacy parsing SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+            # Return in service format: (lat, lon, bounds, source_crs)
+            return (lat, lon, None, srcCrs)
+        
+        try:
+            # Create a settings object for the parser service
             settings = Settings()
-            smart_parser = SmartCoordinateParser(settings, self.iface)
-            result = smart_parser.parse(text)
+            
+            # Use parser service with fallback
+            result = parse_coordinate_with_service(text, "Digitizer", settings, self.iface, legacy_fallback)
             
             if result:
                 lat, lon, bounds, source_crs = result
-                QgsMessageLog.logMessage(f"Digitizer.addFeature: SmartCoordinateParser SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
                 srcCrs = source_crs if source_crs and source_crs.isValid() else epsg4326
             else:
-                QgsMessageLog.logMessage("Digitizer.addFeature: SmartCoordinateParser failed, using legacy parsing...", "LatLonTools", Qgis.Warning)
-                
-                # Fall back to legacy parsing logic based on input projection setting
-                if (self.inputProjection == 0) or (text[0] == '{'):
-                    # If this is GeoJson it does not matter what inputProjection is
-                    if text[0] == '{':  # This may be a GeoJSON point
-                        codec = QTextCodec.codecForName("UTF-8")
-                        fields = QgsJsonUtils.stringToFields(text, codec)
-                        fet = QgsJsonUtils.stringToFeatureList(text, fields, codec)
-                        if (len(fet) == 0) or not fet[0].isValid():
-                            raise ValueError(tr('Invalid Coordinates'))
-
-                        geom = fet[0].geometry()
-                        if geom.isEmpty() or (geom.wkbType() != QgsWkbTypes.Point):
-                            raise ValueError(tr('Invalid GeoJSON Geometry'))
-                        pt = geom.asPoint()
-                        lat = pt.y()
-                        lon = pt.x()
-                    elif re.search(r'POINT\(', text) is not None:
-                        m = re.findall(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)', text)
-                        if len(m) != 1:
-                            raise ValueError(tr('Invalid Coordinates'))
-                        lon = float(m[0][0])
-                        lat = float(m[0][1])
-                    else:
-                        lat, lon = parseDMSString(text, self.inputXYOrder)
-                    srcCrs = epsg4326
-                elif self.inputProjection == 1:
-                    # This is an MGRS coordinate
-                    text = re.sub(r'\s+', '', text)  # Remove all white space
-                    lat, lon = mgrs.toWgs(text)
-                    srcCrs = epsg4326
-                elif self.inputProjection == 4:
-                    text = text.strip()
-                    coord = olc.decode(text)
-                    lat = coord.latitudeCenter
-                    lon = coord.longitudeCenter
-                    srcCrs = epsg4326
-                elif self.inputProjection == 5:
-                    text = text.strip()
-                    pt = utm2Point(text, epsg4326)
-                    lat = pt.y()
-                    lon = pt.x()
-                    srcCrs = epsg4326
-                else:  # Is either the project or custom CRS
-                    if re.search(r'POINT\(', text) is None:
-                        coords = re.split(r'[\s,;:]+', text, 1)
-                        if len(coords) < 2:
-                            raise ValueError('Invalid Coordinates')
-                        if self.inputXYOrder == 0:  # Y, X Order
-                            lat = float(coords[0])
-                            lon = float(coords[1])
-                        else:
-                            lon = float(coords[0])
-                            lat = float(coords[1])
-                    else:
-                        m = re.findall(r'POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)', text)
-                        if len(m) != 1:
-                            raise ValueError(tr('Invalid Coordinates'))
-                        lon = float(m[0][0])
-                        lat = float(m[0][1])
-                    if self.inputProjection == 2:  # Project CRS
-                        srcCrs = self.canvas.mapSettings().destinationCrs()
-                    else:
-                        srcCrs = QgsCoordinateReferenceSystem(self.inputCustomCRS)
-                
-                QgsMessageLog.logMessage(f"Digitizer.addFeature: Legacy parsing SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+                QgsMessageLog.logMessage("Digitizer.addFeature: All parsing methods failed", "LatLonTools", Qgis.Warning)
+                self.iface.messageBar().pushMessage("", tr("Invalid Coordinate"), level=Qgis.Warning, duration=2)
+                return
                 
         except Exception as e:
             QgsMessageLog.logMessage(f"Digitizer.addFeature: Parsing failed: {e}", "LatLonTools", Qgis.Critical)
