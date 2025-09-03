@@ -339,6 +339,10 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             else:
                 raise ValueError(tr('Invalid Coordinates'))
         
+        except Exception as e:
+            QgsMessageLog.logMessage(f"ZoomToLatLon.convertCoordinate: FAILED with exception: {e}", "LatLonTools", Qgis.Critical)
+            raise ValueError(tr('Invalid Coordinates'))
+        
     def zoomToPressed(self):
         from qgis.core import QgsMessageLog, Qgis
         

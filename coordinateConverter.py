@@ -308,39 +308,39 @@ class CoordinateConverterWidget(QDockWidget, FORM_CLASS):
                 
 
     def commitWgs84(self):
-    from qgis.core import QgsMessageLog, Qgis
-    
-    text = self.wgs84LineEdit.text().strip()
-    QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: STARTING COMMIT for input: '{text}'", "LatLonTools", Qgis.Info)
-    
-    def legacy_fallback(text):
-        """Legacy parsing fallback using parseDMSString"""
-        QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Falling back to parseDMSString...", "LatLonTools", Qgis.Info)
-        lat, lon = parseDMSString(text, self.inputXYOrder)
-        QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: parseDMSString SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
-        # Return in service format: (lat, lon, bounds, source_crs)
-        return (lat, lon, None, epsg4326)
-    
-    try:
-        # Use parser service with fallback
-        result = parse_coordinate_with_service(text, "CoordinateConverter", self.settings, self.iface, legacy_fallback)
+        from qgis.core import QgsMessageLog, Qgis
         
-        if result:
-            lat, lon, bounds, source_crs = result
-            pt = QgsPoint(lon, lat)
-            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Creating QgsPoint({lon}, {lat}) and calling updateCoordinates", "LatLonTools", Qgis.Info)
-            self.updateCoordinates(0, pt, epsg4326)
-            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: updateCoordinates completed successfully", "LatLonTools", Qgis.Info)
-        else:
-            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: All parsing methods failed", "LatLonTools", Qgis.Warning)
-            self.showInvalid(0)
+        text = self.wgs84LineEdit.text().strip()
+        QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: STARTING COMMIT for input: '{text}'", "LatLonTools", Qgis.Info)
+        
+        def legacy_fallback(text):
+            """Legacy parsing fallback using parseDMSString"""
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Falling back to parseDMSString...", "LatLonTools", Qgis.Info)
+            lat, lon = parseDMSString(text, self.inputXYOrder)
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: parseDMSString SUCCESS: lat={lat}, lon={lon}", "LatLonTools", Qgis.Info)
+            # Return in service format: (lat, lon, bounds, source_crs)
+            return (lat, lon, None, epsg4326)
+        
+        try:
+            # Use parser service with fallback
+            result = parse_coordinate_with_service(text, "CoordinateConverter", self.settings, self.iface, legacy_fallback)
             
-    except Exception as e:
-        QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: COMMIT FAILED with exception: {e}", "LatLonTools", Qgis.Critical)
-        import traceback
-        QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
-        QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Calling showInvalid(0)", "LatLonTools", Qgis.Info)
-        self.showInvalid(0)
+            if result:
+                lat, lon, bounds, source_crs = result
+                pt = QgsPoint(lon, lat)
+                QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Creating QgsPoint({lon}, {lat}) and calling updateCoordinates", "LatLonTools", Qgis.Info)
+                self.updateCoordinates(0, pt, epsg4326)
+                QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: updateCoordinates completed successfully", "LatLonTools", Qgis.Info)
+            else:
+                QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: All parsing methods failed", "LatLonTools", Qgis.Warning)
+                self.showInvalid(0)
+                
+        except Exception as e:
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: COMMIT FAILED with exception: {e}", "LatLonTools", Qgis.Critical)
+            import traceback
+            QgsMessageLog.logMessage(f"CoordinateConverter.commitWgs84: Traceback: {traceback.format_exc()}", "LatLonTools", Qgis.Critical)
+            QgsMessageLog.logMessage("CoordinateConverter.commitWgs84: Calling showInvalid(0)", "LatLonTools", Qgis.Info)
+            self.showInvalid(0)
 
     def commitProject(self):
         projCRS = self.canvas.mapSettings().destinationCrs()
