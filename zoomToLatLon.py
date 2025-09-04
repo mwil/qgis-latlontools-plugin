@@ -25,7 +25,7 @@ from qgis.PyQt.QtGui import QIcon, QColor
 from qgis.PyQt.QtWidgets import QDockWidget, QApplication, QMenu
 from qgis.PyQt.QtCore import QTextCodec
 from qgis.gui import QgsRubberBand, QgsProjectionSelectionDialog
-from qgis.core import Qgis, QgsJsonUtils, QgsWkbTypes, QgsPointXY, QgsGeometry, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsRectangle
+from qgis.core import Qgis, QgsJsonUtils, QgsWkbTypes, QgsPointXY, QgsGeometry, QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject, QgsRectangle, QgsMessageLog
 from .util import epsg4326, parseDMSString, tr
 from .settings import settings, CoordOrder, H3_INSTALLED
 from .utm import isUtm, utm2Point
@@ -422,17 +422,17 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
         try:
             if hasattr(self, 'marker') and self.marker:
                 self.marker.reset(QgsWkbTypes.PointGeometry)
-        except (RuntimeError, AttributeError):
-            pass
+        except (RuntimeError, AttributeError) as e:
+            QgsMessageLog.logMessage(f"ZoomToLatLon.removeMarker: Exception resetting marker: {e}", "LatLonTools", Qgis.Warning)
         try:
             if hasattr(self, 'line_marker') and self.line_marker:
                 self.line_marker.reset(QgsWkbTypes.LineGeometry)
-        except (RuntimeError, AttributeError):
-            pass
+        except (RuntimeError, AttributeError) as e:
+            QgsMessageLog.logMessage(f"ZoomToLatLon.removeMarker: Exception resetting line_marker: {e}", "LatLonTools", Qgis.Warning)
         try:
             self.coordTxt.clear()
-        except (RuntimeError, AttributeError):
-            pass
+        except (RuntimeError, AttributeError) as e:
+            QgsMessageLog.logMessage(f"ZoomToLatLon.removeMarker: Exception clearing coordTxt: {e}", "LatLonTools", Qgis.Warning)
 
     def showSettings(self):
         self.settings.showTab(1)

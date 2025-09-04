@@ -51,7 +51,7 @@ class SafePluginCleanup:
         except Exception as e:
             # Catch any unexpected errors during unload to prevent hanging
             try:
-                QgsMessageLog.logMessage(f"LatLonTools unload error (safely ignored): {str(e)}", "LatLonTools", Qgis.Warning)
+                QgsMessageLog.logMessage(f"LatLonTools unload error (safely ignored): {str(e)}", "LatLonTools", Qgis.Info)
             except:
                 pass  # Even logging might fail during shutdown
 
@@ -69,18 +69,18 @@ class SafePluginCleanup:
             if hasattr(self.plugin, 'iface') and self.plugin.iface:
                 try:
                     self.plugin.iface.currentLayerChanged.disconnect(self.plugin.currentLayerChanged)
-                except (TypeError, RuntimeError, AttributeError):
+                except (RuntimeError, AttributeError, TypeError):
                     pass
-        except (RuntimeError, AttributeError):
+        except (RuntimeError, AttributeError, TypeError):
             pass
             
         try:
             if hasattr(self.plugin, 'canvas') and self.plugin.canvas:
                 try:
                     self.plugin.canvas.mapToolSet.disconnect(self.plugin.resetTools)
-                except (TypeError, RuntimeError, AttributeError):
+                except (RuntimeError, AttributeError, TypeError):
                     pass
-        except (RuntimeError, AttributeError):
+        except (RuntimeError, AttributeError, TypeError):
             pass
             
         # Disconnect any current layer editing signals - check if iface is valid
@@ -91,9 +91,9 @@ class SafePluginCleanup:
                     try:
                         layer.editingStarted.disconnect(self.plugin.layerEditingChanged)
                         layer.editingStopped.disconnect(self.plugin.layerEditingChanged)
-                    except (TypeError, RuntimeError, AttributeError):
+                    except (RuntimeError, AttributeError, TypeError):
                         pass
-        except (RuntimeError, AttributeError):
+        except (RuntimeError, AttributeError, TypeError):
             pass
         
     def _cleanup_dock_widgets(self):
@@ -138,7 +138,7 @@ class SafePluginCleanup:
                             self.plugin.iface.removeDockWidget(self.plugin.convertCoordinateDialog)
                         self.plugin.convertCoordinateDialog.close()
                         self.plugin.convertCoordinateDialog.deleteLater()
-                    except (RuntimeError, AttributeError):
+                    except (RuntimeError, AttributeError, TypeError):
                         pass
             except (RuntimeError, AttributeError, TypeError):
                 pass
@@ -148,7 +148,7 @@ class SafePluginCleanup:
             try:
                 self.plugin.digitizerDialog.close()
                 self.plugin.digitizerDialog.deleteLater()
-            except (RuntimeError, AttributeError):
+            except (RuntimeError, AttributeError, TypeError):
                 pass
                 
         # Cleanup settings dialog
@@ -156,7 +156,7 @@ class SafePluginCleanup:
             try:
                 self.plugin.settingsDialog.close()
                 self.plugin.settingsDialog.deleteLater()
-            except (RuntimeError, AttributeError):
+            except (RuntimeError, AttributeError, TypeError):
                 pass
                 
     def _cleanup_map_tools(self):
@@ -196,7 +196,7 @@ class SafePluginCleanup:
                         scene = self.plugin.canvas.scene()
                         if scene and self.plugin.crossRb in scene.items():
                             scene.removeItem(self.plugin.crossRb)
-                except (RuntimeError, AttributeError):
+                except (RuntimeError, AttributeError, TypeError):
                     pass
                 self.plugin.crossRb = None
         except (RuntimeError, AttributeError, TypeError):

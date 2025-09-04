@@ -669,7 +669,8 @@ class LatLonTools:
         QTimer.singleShot(700, self.resetRubberbands)
 
     def resetRubberbands(self):
-        self.crossRb.reset(QgsWkbTypes.LineGeometry)
+        if self.crossRb is not None:
+            self.crossRb.reset(QgsWkbTypes.LineGeometry)
 
     def digitizeClicked(self):
         if self.digitizerDialog is None:
