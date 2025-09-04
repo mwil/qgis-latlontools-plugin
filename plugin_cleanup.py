@@ -3,7 +3,13 @@ Plugin Cleanup Module
 Provides safe cleanup functionality to prevent QGIS hanging during plugin unload
 """
 
-from qgis.core import QgsWkbTypes
+from qgis.core import QgsWkbTypes, QgsMessageLog, Qgis, QgsApplication
+from qgis.PyQt.QtCore import QCoreApplication
+
+try:
+    from .latLonFunctions import UnloadLatLonFunctions
+except ImportError:
+    UnloadLatLonFunctions = None
 
 
 class SafePluginCleanup:
@@ -45,7 +51,6 @@ class SafePluginCleanup:
         except Exception as e:
             # Catch any unexpected errors during unload to prevent hanging
             try:
-                from qgis.core import QgsMessageLog, Qgis
                 QgsMessageLog.logMessage(f"LatLonTools unload error (safely ignored): {str(e)}", "LatLonTools", Qgis.Warning)
             except:
                 pass  # Even logging might fail during shutdown
@@ -314,7 +319,6 @@ class SafePluginCleanup:
             return
             
         try:
-            from qgis.core import QgsApplication
             if hasattr(self.plugin, 'provider') and self.plugin.provider:
                 QgsApplication.processingRegistry().removeProvider(self.plugin.provider)
         except (RuntimeError, AttributeError, ImportError, TypeError):
@@ -322,9 +326,9 @@ class SafePluginCleanup:
             
         # Unload functions if available
         try:
-            from .latLonFunctions import UnloadLatLonFunctions
-            UnloadLatLonFunctions()
-        except (RuntimeError, AttributeError, ImportError, TypeError):
+            if UnloadLatLonFunctions is not None:
+                UnloadLatLonFunctions()
+        except (RuntimeError, AttributeError, TypeError):
             pass
             
     def _clear_references(self):
