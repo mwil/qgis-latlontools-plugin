@@ -186,7 +186,7 @@ class SafePluginCleanup:
         try:
             if hasattr(self.plugin, 'crossRb') and self.plugin.crossRb:
                 try:
-                    self.plugin.crossRb.reset()
+                    self.plugin.crossRb.reset(QgsWkbTypes.LineGeometry)
                     if hasattr(self.plugin, 'canvas') and self.plugin.canvas:
                         scene = self.plugin.canvas.scene()
                         if scene and self.plugin.crossRb in scene.items():
@@ -386,7 +386,7 @@ class SafeDockWidgetCleanup:
         # Remove rubber bands from canvas completely
         if hasattr(zoom_dialog, 'marker') and zoom_dialog.marker:
             try:
-                zoom_dialog.marker.reset()
+                zoom_dialog.marker.reset(QgsWkbTypes.PointGeometry)
                 # Remove from canvas scene if canvas still exists
                 if hasattr(zoom_dialog, 'canvas') and zoom_dialog.canvas is not None:
                     try:
@@ -401,7 +401,7 @@ class SafeDockWidgetCleanup:
                 
         if hasattr(zoom_dialog, 'line_marker') and zoom_dialog.line_marker:
             try:
-                zoom_dialog.line_marker.reset()
+                zoom_dialog.line_marker.reset(QgsWkbTypes.LineGeometry)
                 # Remove from canvas scene if canvas still exists
                 if hasattr(zoom_dialog, 'canvas') and zoom_dialog.canvas is not None:
                     try:

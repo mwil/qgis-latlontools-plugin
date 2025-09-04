@@ -312,7 +312,7 @@ class LatLonTools:
             # Clean up crossRb rubber band
             if hasattr(self, 'crossRb') and self.crossRb:
                 try:
-                    self.crossRb.reset()
+                    self.crossRb.reset(QgsWkbTypes.LineGeometry)
                     if hasattr(self, 'canvas') and self.canvas:
                         scene = self.canvas.scene()
                         if scene and self.crossRb in scene.items():
@@ -468,153 +468,6 @@ class LatLonTools:
                 QgsApplication.processingRegistry().removeProvider(self.provider)
             UnloadLatLonFunctions()
         except (RuntimeError, AttributeError, ImportError):
-            pass
-            
-    def _fallback_cleanup(self):
-        """Comprehensive fallback cleanup when enhanced cleanup is not available"""
-        try:
-            # Disconnect main plugin signals first
-            try:
-                self.iface.currentLayerChanged.disconnect(self.currentLayerChanged)
-            except (TypeError, RuntimeError, AttributeError):
-                pass
-            try:
-                self.canvas.mapToolSet.disconnect(self.resetTools)
-            except (TypeError, RuntimeError, AttributeError):
-                pass
-                
-            # Disconnect current layer editing signals
-            try:
-                layer = self.iface.activeLayer()
-                if layer is not None:
-                    try:
-                        layer.editingStarted.disconnect(self.layerEditingChanged)
-                        layer.editingStopped.disconnect(self.layerEditingChanged)
-                    except (TypeError, RuntimeError, AttributeError):
-                        pass
-            except (RuntimeError, AttributeError):
-                pass
-            
-            # Enhanced dialog cleanup
-            if hasattr(self, 'zoomToDialog') and self.zoomToDialog:
-                try:
-                    # Disconnect canvas signal
-                    self.canvas.destinationCrsChanged.disconnect(self.zoomToDialog.crsChanged)
-                except (TypeError, RuntimeError, AttributeError):
-                    pass
-                try:
-                    self.zoomToDialog.removeMarker()
-                    self.iface.removeDockWidget(self.zoomToDialog)
-                    self.zoomToDialog.close()
-                    self.zoomToDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'multiZoomDialog') and self.multiZoomDialog:
-                try:
-                    # Disconnect canvas signal
-                    self.canvas.destinationCrsChanged.disconnect(self.multiZoomDialog.crsChanged)
-                except (TypeError, RuntimeError, AttributeError):
-                    pass
-                try:
-                    self.multiZoomDialog.removeMarkers()
-                    self.iface.removeDockWidget(self.multiZoomDialog)
-                    self.multiZoomDialog.close()
-                    self.multiZoomDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'convertCoordinateDialog') and self.convertCoordinateDialog:
-                try:
-                    self.iface.removeDockWidget(self.convertCoordinateDialog)
-                    self.convertCoordinateDialog.close()
-                    self.convertCoordinateDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'digitizerDialog') and self.digitizerDialog:
-                try:
-                    self.digitizerDialog.close()
-                    self.digitizerDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            # Cleanup map tools
-            if hasattr(self, 'mapTool') and self.mapTool:
-                try:
-                    self.canvas.unsetMapTool(self.mapTool)
-                except (RuntimeError, AttributeError):
-                    pass
-            if hasattr(self, 'showMapTool') and self.showMapTool:
-                try:
-                    self.canvas.unsetMapTool(self.showMapTool)
-                except (RuntimeError, AttributeError):
-                    pass
-            if hasattr(self, 'copyExtentTool') and self.copyExtentTool:
-                try:
-                    self.canvas.unsetMapTool(self.copyExtentTool)
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            # Remove menu items
-            menu_actions = [
-                'copyAction', 'copyExtentsAction', 'externMapAction',
-                'zoomToAction', 'multiZoomToAction', 'convertCoordinatesAction',
-                'conversionsAction', 'settingsAction', 'helpAction', 'digitizeAction'
-            ]
-            for action_name in menu_actions:
-                try:
-                    action = getattr(self, action_name, None)
-                    if action:
-                        self.iface.removePluginMenu('Lat Lon Tools', action)
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            # Remove toolbar icons
-            toolbar_actions = [
-                'copyAction', 'copyExtentToolbar', 'zoomToAction',
-                'externMapAction', 'multiZoomToAction', 'convertCoordinatesAction',
-                'digitizeAction', 'settingsAction'
-            ]
-            for action_name in toolbar_actions:
-                try:
-                    action = getattr(self, action_name, None)
-                    if action:
-                        self.iface.removeToolBarIcon(action)
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            # Remove toolbar
-            try:
-                if hasattr(self, 'toolbar'):
-                    self.toolbar.deleteLater()
-                    del self.toolbar
-            except (RuntimeError, AttributeError):
-                pass
-                
-        except Exception as e:
-            # Catch any unexpected errors during fallback cleanup
-            try:
-                from qgis.core import QgsMessageLog, Qgis
-                QgsMessageLog.logMessage(f"Fallback cleanup error (safely ignored): {str(e)}", "LatLonTools", Qgis.Warning)
-            except:
-                pass
-        
-        # Clear references
-        self.zoomToDialog = None
-        self.multiZoomDialog = None
-        self.settingsDialog = None
-        self.convertCoordinateDialog = None
-        self.digitizerDialog = None
-        self.showMapTool = None
-        self.mapTool = None
-        self.copyExtentTool = None
-
-        # Remove processing provider
-        try:
-            QgsApplication.processingRegistry().removeProvider(self.provider)
-            UnloadLatLonFunctions()
-        except (RuntimeError, AttributeError):
             pass
 
     def startCapture(self):
@@ -816,7 +669,7 @@ class LatLonTools:
         QTimer.singleShot(700, self.resetRubberbands)
 
     def resetRubberbands(self):
-        self.crossRb.reset()
+        self.crossRb.reset(QgsWkbTypes.LineGeometry)
 
     def digitizeClicked(self):
         if self.digitizerDialog is None:

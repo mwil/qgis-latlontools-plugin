@@ -239,7 +239,7 @@ class MultiZoomWidget(QDockWidget, FORM_CLASS):
             for id in range(rowcnt):
                 try:
                     item = self.resultsTable.item(id, 0)
-                    if item and hasattr(item, 'data'):
+                    if item:
                         marker_item = item.data(Qt.UserRole)
                         if marker_item and hasattr(marker_item, 'marker') and marker_item.marker is not None:
                             try:
