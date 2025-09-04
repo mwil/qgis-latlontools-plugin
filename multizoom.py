@@ -232,14 +232,28 @@ class MultiZoomWidget(QDockWidget, FORM_CLASS):
                     item.marker = None
 
     def removeMarkers(self):
-        rowcnt = self.resultsTable.rowCount()
-        if rowcnt == 0:
-            return
-        for id in range(rowcnt):
-            item = self.resultsTable.item(id, 0).data(Qt.UserRole)
-            if item.marker is not None:
-                self.canvas.scene().removeItem(item.marker)
-                item.marker = None
+        try:
+            rowcnt = self.resultsTable.rowCount()
+            if rowcnt == 0:
+                return
+            for id in range(rowcnt):
+                try:
+                    item = self.resultsTable.item(id, 0)
+                    if item and hasattr(item, 'data'):
+                        marker_item = item.data(Qt.UserRole)
+                        if marker_item and hasattr(marker_item, 'marker') and marker_item.marker is not None:
+                            try:
+                                if hasattr(self, 'canvas') and self.canvas:
+                                    scene = self.canvas.scene()
+                                    if scene and marker_item.marker in scene.items():
+                                        scene.removeItem(marker_item.marker)
+                                marker_item.marker = None
+                            except (RuntimeError, AttributeError):
+                                pass
+                except (RuntimeError, AttributeError):
+                    pass
+        except (RuntimeError, AttributeError):
+            pass
 
     def openDialog(self):
         filename = QFileDialog.getOpenFileName(

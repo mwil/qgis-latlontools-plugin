@@ -419,9 +419,20 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
         self.coordTxt.setText(text)
         
     def removeMarker(self):
-        self.marker.reset(QgsWkbTypes.PointGeometry)
-        self.line_marker.reset(QgsWkbTypes.LineGeometry)
-        self.coordTxt.clear()
+        try:
+            if hasattr(self, 'marker') and self.marker:
+                self.marker.reset(QgsWkbTypes.PointGeometry)
+        except (RuntimeError, AttributeError):
+            pass
+        try:
+            if hasattr(self, 'line_marker') and self.line_marker:
+                self.line_marker.reset(QgsWkbTypes.LineGeometry)
+        except (RuntimeError, AttributeError):
+            pass
+        try:
+            self.coordTxt.clear()
+        except (RuntimeError, AttributeError):
+            pass
 
     def showSettings(self):
         self.settings.showTab(1)

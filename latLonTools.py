@@ -259,53 +259,363 @@ class LatLonTools:
 
     def unload(self):
         '''Unload LatLonTools from the QGIS interface'''
+        # Set flag to prevent operations during shutdown
+        if not hasattr(self, '_is_unloading'):
+            self._is_unloading = False
+        self._is_unloading = True
+        
         # Use enhanced cleanup functionality if available
         if hasattr(self, '_enhancements') and self._enhancements:
-            self._enhancements.safe_unload()
-        else:
-            # Fallback to basic cleanup if enhancements not available
             try:
-                self.zoomToDialog.removeMarker()
-                self.multiZoomDialog.removeMarkers()
-                if self.mapTool:
-                    self.canvas.unsetMapTool(self.mapTool)
-                if self.showMapTool:
-                    self.canvas.unsetMapTool(self.showMapTool)
-                self.iface.removePluginMenu('Lat Lon Tools', self.copyAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.copyExtentsAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.externMapAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.zoomToAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.multiZoomToAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.convertCoordinatesAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.conversionsAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.settingsAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.helpAction)
-                self.iface.removePluginMenu('Lat Lon Tools', self.digitizeAction)
-                self.iface.removeDockWidget(self.zoomToDialog)
-                self.iface.removeDockWidget(self.multiZoomDialog)
-                self.iface.removeToolBarIcon(self.copyAction)
-                self.iface.removeToolBarIcon(self.copyExtentToolbar)
-                self.iface.removeToolBarIcon(self.zoomToAction)
-                self.iface.removeToolBarIcon(self.externMapAction)
-                self.iface.removeToolBarIcon(self.multiZoomToAction)
-                self.iface.removeToolBarIcon(self.convertCoordinatesAction)
-                self.iface.removeToolBarIcon(self.digitizeAction)
-                del self.toolbar
-                if self.convertCoordinateDialog:
-                    self.iface.removeDockWidget(self.convertCoordinateDialog)
-                    self.convertCoordinateDialog = None
-            except Exception:
-                pass  # Ignore errors during fallback cleanup
+                self._enhancements.safe_unload()
+            except Exception as e:
+                # If enhanced cleanup fails, fall back to basic cleanup
+                try:
+                    from qgis.core import QgsMessageLog, Qgis
+                    QgsMessageLog.logMessage(f"Enhanced cleanup failed, using fallback: {str(e)}", "LatLonTools", Qgis.Warning)
+                except:
+                    pass
+                self._fallback_cleanup()
+        else:
+            # Use comprehensive fallback cleanup 
+            self._fallback_cleanup()
+            
+    def _fallback_cleanup(self):
+        """Comprehensive fallback cleanup when enhanced cleanup is not available"""
+        try:
+            # Disconnect main plugin signals first - check if objects exist
+            if hasattr(self, 'iface') and self.iface:
+                try:
+                    self.iface.currentLayerChanged.disconnect(self.currentLayerChanged)
+                except (TypeError, RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'canvas') and self.canvas:
+                try:
+                    self.canvas.mapToolSet.disconnect(self.resetTools)
+                except (TypeError, RuntimeError, AttributeError):
+                    pass
+                    
+            # Disconnect current layer editing signals - may fail if iface is gone
+            try:
+                if hasattr(self, 'iface') and self.iface:
+                    layer = self.iface.activeLayer()
+                    if layer is not None:
+                        try:
+                            layer.editingStarted.disconnect(self.layerEditingChanged)
+                            layer.editingStopped.disconnect(self.layerEditingChanged)
+                        except (TypeError, RuntimeError, AttributeError):
+                            pass
+            except (RuntimeError, AttributeError):
+                pass
+            
+            # Clean up crossRb rubber band
+            if hasattr(self, 'crossRb') and self.crossRb:
+                try:
+                    self.crossRb.reset()
+                    if hasattr(self, 'canvas') and self.canvas:
+                        scene = self.canvas.scene()
+                        if scene and self.crossRb in scene.items():
+                            scene.removeItem(self.crossRb)
+                except (RuntimeError, AttributeError):
+                    pass
+            
+            # Enhanced dialog cleanup with existence checks
+            if hasattr(self, 'zoomToDialog') and self.zoomToDialog:
+                try:
+                    # Disconnect canvas signal if canvas still exists
+                    if hasattr(self, 'canvas') and self.canvas:
+                        self.canvas.destinationCrsChanged.disconnect(self.zoomToDialog.crsChanged)
+                except (TypeError, RuntimeError, AttributeError):
+                    pass
+                try:
+                    self.zoomToDialog.removeMarker()
+                    if hasattr(self, 'iface') and self.iface:
+                        self.iface.removeDockWidget(self.zoomToDialog)
+                    self.zoomToDialog.close()
+                    self.zoomToDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'multiZoomDialog') and self.multiZoomDialog:
+                try:
+                    # Disconnect canvas signal if canvas still exists
+                    if hasattr(self, 'canvas') and self.canvas:
+                        self.canvas.destinationCrsChanged.disconnect(self.multiZoomDialog.crsChanged)
+                except (TypeError, RuntimeError, AttributeError):
+                    pass
+                try:
+                    self.multiZoomDialog.removeMarkers()
+                    if hasattr(self, 'iface') and self.iface:
+                        self.iface.removeDockWidget(self.multiZoomDialog)
+                    self.multiZoomDialog.close()
+                    self.multiZoomDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'convertCoordinateDialog') and self.convertCoordinateDialog:
+                try:
+                    if hasattr(self, 'iface') and self.iface:
+                        self.iface.removeDockWidget(self.convertCoordinateDialog)
+                    self.convertCoordinateDialog.close()
+                    self.convertCoordinateDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'digitizerDialog') and self.digitizerDialog:
+                try:
+                    self.digitizerDialog.close()
+                    self.digitizerDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'settingsDialog') and self.settingsDialog:
+                try:
+                    self.settingsDialog.close()
+                    self.settingsDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Cleanup map tools - check existence first
+            if hasattr(self, 'mapTool') and self.mapTool:
+                try:
+                    if hasattr(self, 'canvas') and self.canvas:
+                        self.canvas.unsetMapTool(self.mapTool)
+                except (RuntimeError, AttributeError):
+                    pass
+            if hasattr(self, 'showMapTool') and self.showMapTool:
+                try:
+                    if hasattr(self, 'canvas') and self.canvas:
+                        self.canvas.unsetMapTool(self.showMapTool)
+                except (RuntimeError, AttributeError):
+                    pass
+            if hasattr(self, 'copyExtentTool') and self.copyExtentTool:
+                try:
+                    if hasattr(self, 'canvas') and self.canvas:
+                        self.canvas.unsetMapTool(self.copyExtentTool)
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Remove menu items - check if actions exist and iface is valid
+            menu_action_names = [
+                'copyAction', 'copyExtentsAction', 'externMapAction',
+                'zoomToAction', 'multiZoomToAction', 'convertCoordinatesAction',
+                'conversionsAction', 'settingsAction', 'helpAction', 'digitizeAction'
+            ]
+            for action_name in menu_action_names:
+                if hasattr(self, action_name):
+                    try:
+                        action = getattr(self, action_name)
+                        if action and hasattr(self, 'iface') and self.iface:
+                            self.iface.removePluginMenu('Lat Lon Tools', action)
+                    except (RuntimeError, AttributeError):
+                        pass
+                    
+            # Remove toolbar icons - check if actions/toolbar exist
+            toolbar_action_names = [
+                'copyAction', 'copyExtentToolbar', 'zoomToAction',
+                'externMapAction', 'multiZoomToAction', 'convertCoordinatesAction',
+                'digitizeAction', 'settingsAction'
+            ]
+            for action_name in toolbar_action_names:
+                if hasattr(self, action_name):
+                    try:
+                        action = getattr(self, action_name)
+                        if action and hasattr(self, 'iface') and self.iface:
+                            self.iface.removeToolBarIcon(action)
+                    except (RuntimeError, AttributeError):
+                        pass
+                    
+            # Remove toolbar - check existence
+            if hasattr(self, 'toolbar') and self.toolbar:
+                try:
+                    self.toolbar.deleteLater()
+                    del self.toolbar
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Remove translator - check existence
+            if hasattr(self, 'translator') and self.translator:
+                try:
+                    QCoreApplication.removeTranslator(self.translator)
+                except (RuntimeError, AttributeError):
+                    pass
+                
+        except Exception as e:
+            # Catch any unexpected errors during fallback cleanup
+            try:
+                from qgis.core import QgsMessageLog, Qgis
+                QgsMessageLog.logMessage(f"Fallback cleanup error (safely ignored): {str(e)}", "LatLonTools", Qgis.Warning)
+            except:
+                pass
         
+        # Clear all references - set to None even if they don't exist
         self.zoomToDialog = None
         self.multiZoomDialog = None
         self.settingsDialog = None
+        self.convertCoordinateDialog = None
+        self.digitizerDialog = None
         self.showMapTool = None
         self.mapTool = None
+        self.copyExtentTool = None
+        self.crossRb = None
+        self.translator = None
+        self.toolbar = None
+        
+        # Remove processing provider - check existence
+        try:
+            if hasattr(self, 'provider') and self.provider:
+                QgsApplication.processingRegistry().removeProvider(self.provider)
+            UnloadLatLonFunctions()
+        except (RuntimeError, AttributeError, ImportError):
+            pass
+            
+    def _fallback_cleanup(self):
+        """Comprehensive fallback cleanup when enhanced cleanup is not available"""
+        try:
+            # Disconnect main plugin signals first
+            try:
+                self.iface.currentLayerChanged.disconnect(self.currentLayerChanged)
+            except (TypeError, RuntimeError, AttributeError):
+                pass
+            try:
+                self.canvas.mapToolSet.disconnect(self.resetTools)
+            except (TypeError, RuntimeError, AttributeError):
+                pass
+                
+            # Disconnect current layer editing signals
+            try:
+                layer = self.iface.activeLayer()
+                if layer is not None:
+                    try:
+                        layer.editingStarted.disconnect(self.layerEditingChanged)
+                        layer.editingStopped.disconnect(self.layerEditingChanged)
+                    except (TypeError, RuntimeError, AttributeError):
+                        pass
+            except (RuntimeError, AttributeError):
+                pass
+            
+            # Enhanced dialog cleanup
+            if hasattr(self, 'zoomToDialog') and self.zoomToDialog:
+                try:
+                    # Disconnect canvas signal
+                    self.canvas.destinationCrsChanged.disconnect(self.zoomToDialog.crsChanged)
+                except (TypeError, RuntimeError, AttributeError):
+                    pass
+                try:
+                    self.zoomToDialog.removeMarker()
+                    self.iface.removeDockWidget(self.zoomToDialog)
+                    self.zoomToDialog.close()
+                    self.zoomToDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'multiZoomDialog') and self.multiZoomDialog:
+                try:
+                    # Disconnect canvas signal
+                    self.canvas.destinationCrsChanged.disconnect(self.multiZoomDialog.crsChanged)
+                except (TypeError, RuntimeError, AttributeError):
+                    pass
+                try:
+                    self.multiZoomDialog.removeMarkers()
+                    self.iface.removeDockWidget(self.multiZoomDialog)
+                    self.multiZoomDialog.close()
+                    self.multiZoomDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'convertCoordinateDialog') and self.convertCoordinateDialog:
+                try:
+                    self.iface.removeDockWidget(self.convertCoordinateDialog)
+                    self.convertCoordinateDialog.close()
+                    self.convertCoordinateDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            if hasattr(self, 'digitizerDialog') and self.digitizerDialog:
+                try:
+                    self.digitizerDialog.close()
+                    self.digitizerDialog.deleteLater()
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Cleanup map tools
+            if hasattr(self, 'mapTool') and self.mapTool:
+                try:
+                    self.canvas.unsetMapTool(self.mapTool)
+                except (RuntimeError, AttributeError):
+                    pass
+            if hasattr(self, 'showMapTool') and self.showMapTool:
+                try:
+                    self.canvas.unsetMapTool(self.showMapTool)
+                except (RuntimeError, AttributeError):
+                    pass
+            if hasattr(self, 'copyExtentTool') and self.copyExtentTool:
+                try:
+                    self.canvas.unsetMapTool(self.copyExtentTool)
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Remove menu items
+            menu_actions = [
+                'copyAction', 'copyExtentsAction', 'externMapAction',
+                'zoomToAction', 'multiZoomToAction', 'convertCoordinatesAction',
+                'conversionsAction', 'settingsAction', 'helpAction', 'digitizeAction'
+            ]
+            for action_name in menu_actions:
+                try:
+                    action = getattr(self, action_name, None)
+                    if action:
+                        self.iface.removePluginMenu('Lat Lon Tools', action)
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Remove toolbar icons
+            toolbar_actions = [
+                'copyAction', 'copyExtentToolbar', 'zoomToAction',
+                'externMapAction', 'multiZoomToAction', 'convertCoordinatesAction',
+                'digitizeAction', 'settingsAction'
+            ]
+            for action_name in toolbar_actions:
+                try:
+                    action = getattr(self, action_name, None)
+                    if action:
+                        self.iface.removeToolBarIcon(action)
+                except (RuntimeError, AttributeError):
+                    pass
+                    
+            # Remove toolbar
+            try:
+                if hasattr(self, 'toolbar'):
+                    self.toolbar.deleteLater()
+                    del self.toolbar
+            except (RuntimeError, AttributeError):
+                pass
+                
+        except Exception as e:
+            # Catch any unexpected errors during fallback cleanup
+            try:
+                from qgis.core import QgsMessageLog, Qgis
+                QgsMessageLog.logMessage(f"Fallback cleanup error (safely ignored): {str(e)}", "LatLonTools", Qgis.Warning)
+            except:
+                pass
+        
+        # Clear references
+        self.zoomToDialog = None
+        self.multiZoomDialog = None
+        self.settingsDialog = None
+        self.convertCoordinateDialog = None
         self.digitizerDialog = None
+        self.showMapTool = None
+        self.mapTool = None
+        self.copyExtentTool = None
 
-        QgsApplication.processingRegistry().removeProvider(self.provider)
-        UnloadLatLonFunctions()
+        # Remove processing provider
+        try:
+            QgsApplication.processingRegistry().removeProvider(self.provider)
+            UnloadLatLonFunctions()
+        except (RuntimeError, AttributeError):
+            pass
 
     def startCapture(self):
         '''Set the focus of the copy coordinate tool'''
