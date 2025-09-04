@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Bulletproof Plugin Reload**: Comprehensive resource cleanup system preventing duplicate panels and exceptions during plugin reload
+
+### Fixed
+- **Plugin Reload Issues**: Fixed duplicate panel creation and AttributeError exceptions during plugin unload/reload cycles  
+- **Resource Leaks**: Enhanced signal disconnection and Qt widget lifecycle management to prevent orphaned resources
+
+### Changed
+- **Error Handling**: Improved defensive programming with triple-layer exception handling across cleanup operations
+- **Import Organization**: Moved all imports to module level for better stability during plugin shutdown
+
+---
+
+## [3.10.0] - 2025-09-01
+
+### Added
 - **Service Layer Architecture**: Centralized coordinate parsing service with singleton pattern eliminating 15+ line code duplication across UI components
 - **Try-Parse Architecture**: Exception-based parsing using mature coordinate libraries instead of error-prone regex pre-validation
 - **Comprehensive Test Infrastructure**: Unified test runner with cross-platform QGIS detection supporting standalone, service, validation, and integration tests
@@ -17,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Critical UTM Misclassification Bug**: UTM coordinates like `500000 4500000 1000` are no longer incorrectly parsed as DMS coordinates
 - **Service Layer Integration**: All UI components (coordinateConverter, digitizer, multizoom, zoomToLatLon) now use centralized parser service
 - **Python Syntax Errors**: Fixed critical indentation errors preventing code execution after refactoring
+- **Regex Pattern Bugs**: Resolved critical double backslash issues in coordinate format detection
 
 ### Changed  
 - **Fundamental Architecture Shift**: From regex pre-validation to mature library validation with exception handling
