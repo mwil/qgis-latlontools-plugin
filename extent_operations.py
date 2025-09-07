@@ -216,7 +216,7 @@ class ExtentOperations:
         """
         try:
             # Use the existing getExtentString function for consistent formatting
-            extent_string = getExtentString(extent, crs, self.settings)
+            extent_string = getExtentString(extent, crs, epsg4326)
             
             # Copy to system clipboard
             clipboard = QApplication.clipboard()

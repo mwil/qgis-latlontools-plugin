@@ -180,8 +180,8 @@ def utm_parse(utm_str: str) -> tuple:
     m = re.match(
         r'(?P<easting>\d+\.?\d*)\s*M?\s*E\s*,?\s*'
         r'(?P<northing>\d+\.?\d*)\s*M?\s*N\s*,?\s*'
-        r'(?P<zone>\d+)\s*(?P<hemisphere>[NS])\s*'
-        r'(?P<elevation>\d+\.?\d*\s*M?)?', utm, re.IGNORECASE)
+        r'(?P<zone>\d+)\s*(?P<hemisphere>[NS])'
+        r'(?:\s*,?\s*(?P<elevation>\d+\.?\d*)\s*M?)?', utm, re.IGNORECASE)
     if m:
         zone = int(m.group('zone'))
         if zone < 1 or zone > 60:
