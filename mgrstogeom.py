@@ -28,7 +28,7 @@ from . import mgrs
 from .util import tr
 
 
-class MGRStoLayerlgorithm(QgsProcessingAlgorithm):
+class MGRStoLayerAlgorithm(QgsProcessingAlgorithm):
     """
     Algorithm to convert a layer with an MGRS field into a point layer.
     """
@@ -125,4 +125,4 @@ class MGRStoLayerlgorithm(QgsProcessingAlgorithm):
         return help
 
     def createInstance(self):
-        return MGRStoLayerlgorithm()
+        return MGRStoLayerAlgorithm()

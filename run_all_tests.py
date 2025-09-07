@@ -2,20 +2,40 @@
 """
 Comprehensive Test Suite Runner for QGIS Lat Lon Tools Plugin
 
-This is the unified test runner that executes all tests in the proper order:
-1. Standalone tests (no QGIS required)
-2. Service layer integration tests  
-3. QGIS-dependent validation tests
-4. Full integration tests
+This is the unified test runner that executes all tests in the proper order,
+with cross-platform QGIS detection and intelligent test categorization.
 
-Usage:
+**Test Execution Order:**
+1. Standalone tests (no QGIS required) - Pattern detection, basic parsing
+2. Service layer integration tests - Singleton pattern, lazy loading, UI integration
+3. QGIS-dependent validation tests - Regex validation, coordinate handling, edge cases
+4. Full integration tests - End-to-end parsing scenarios (slow, optional)
+
+**Key Features:**
+- Cross-platform QGIS detection (macOS, Windows, Linux)
+- Automatic QGIS environment setup
+- Intelligent test categorization
+- Performance-optimized execution (fast mode)
+- Comprehensive reporting with service layer status
+
+**Usage Examples:**
     python3 run_all_tests.py                    # Run all tests
     python3 run_all_tests.py --type standalone  # Standalone tests only
     python3 run_all_tests.py --type service     # Service layer tests only
     python3 run_all_tests.py --type validation  # QGIS validation tests only
     python3 run_all_tests.py --type integration # Full integration tests only
-    python3 run_all_tests.py --verbose          # Verbose output
+    python3 run_all_tests.py --verbose          # Verbose output with details
     python3 run_all_tests.py --fast             # Skip slow integration tests
+
+**QGIS Environment Detection:**
+Automatically detects QGIS installation paths across platforms
+
+**Integration with CI/CD:**
+- Returns proper exit codes (0=success, 1=failure)
+- Structured output for automated parsing
+
+Author: Claude Code (Deep Refactoring Phase 2)
+Purpose: Comprehensive validation of refactoring architecture
 """
 
 import sys
@@ -26,12 +46,31 @@ import subprocess
 import platform
 from pathlib import Path
 
-# Add project root to path
+# Add project root to path for test imports
+# CRITICAL: Must be before any plugin imports in test files
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, PROJECT_ROOT)
 
 class TestRunner:
-    """Comprehensive test runner for the plugin"""
+    """
+    Comprehensive test runner with intelligent QGIS detection and categorized execution.
+    
+    **Test Categories:**
+    1. **Standalone**: Core logic, no QGIS dependencies (fast)
+    2. **Service Layer**: Refactoring architecture validation (critical)
+    3. **Validation**: Edge cases and real-world scenarios (thorough)
+    4. **Integration**: End-to-end workflows (slow, comprehensive)
+    
+    **QGIS Detection Strategy:**
+    - Environment variable QGIS_PYTHON_PATH (CI/CD preferred)
+    - Platform-specific standard installation paths
+    - Graceful degradation if QGIS not available
+    
+    **Performance Features:**
+    - Fast mode skips slow integration tests
+    - Timeout handling prevents hanging tests
+    - Parallel-safe test execution
+    """
     
     def __init__(self, verbose=False, fast=False):
         self.verbose = verbose
@@ -40,7 +79,18 @@ class TestRunner:
         self.qgis_app = None
         
     def detect_qgis_environment(self):
-        """Detect QGIS installation and set up environment"""
+        """Detect QGIS installation and set up environment.
+        
+        **Detection Priority:**
+        1. QGIS_PYTHON_PATH environment variable
+        2. Platform-specific standard paths
+        3. Return False if not found (skip QGIS tests)
+        
+        **Platform Support:**
+        - macOS: /Applications/QGIS.app/Contents/Resources/python
+        - Windows: Program Files, OSGeo4W paths
+        - Linux: /usr/share, /usr/local/share paths
+        """
         system = platform.system()
         qgis_python_path = os.environ.get('QGIS_PYTHON_PATH')
         

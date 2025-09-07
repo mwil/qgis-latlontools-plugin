@@ -152,7 +152,7 @@ class ToPlusCodesAlgorithm(QgsProcessingAlgorithm):
         return ToPlusCodesAlgorithm()
 
 
-class PlusCodes2Layerlgorithm(QgsProcessingAlgorithm):
+class PlusCodes2LayerAlgorithm(QgsProcessingAlgorithm):
     """
     Algorithm to convert a layer with a Plus Codes field into a point layer.
     """
@@ -251,4 +251,4 @@ class PlusCodes2Layerlgorithm(QgsProcessingAlgorithm):
         return help
 
     def createInstance(self):
-        return PlusCodes2Layerlgorithm()
+        return PlusCodes2LayerAlgorithm()
