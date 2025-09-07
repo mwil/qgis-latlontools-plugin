@@ -12,8 +12,8 @@ import os
 from qgis.core import QgsProcessingProvider
 from qgis.PyQt.QtGui import QIcon
 from .tomgrs import ToMGRSAlgorithm
-from .mgrstogeom import MGRStoLayerlgorithm
-from .pluscodes import ToPlusCodesAlgorithm, PlusCodes2Layerlgorithm
+from .mgrstogeom import MGRStoLayerAlgorithm
+from .pluscodes import ToPlusCodesAlgorithm, PlusCodes2LayerAlgorithm
 from .geom2field import Geom2FieldAlgorithm
 from .field2geom import Field2GeomAlgorithm
 from .geom2wkt import Geom2WktAlgorithm
@@ -27,9 +27,9 @@ class LatLonToolsProvider(QgsProcessingProvider):
         QgsProcessingProvider.unload(self)
 
     def loadAlgorithms(self):
-        self.addAlgorithm(PlusCodes2Layerlgorithm())
+        self.addAlgorithm(PlusCodes2LayerAlgorithm())
         self.addAlgorithm(ToPlusCodesAlgorithm())
-        self.addAlgorithm(MGRStoLayerlgorithm())
+        self.addAlgorithm(MGRStoLayerAlgorithm())
         self.addAlgorithm(ToMGRSAlgorithm())
         self.addAlgorithm(Geom2FieldAlgorithm())
         self.addAlgorithm(Field2GeomAlgorithm())

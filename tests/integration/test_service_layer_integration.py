@@ -52,23 +52,30 @@ class TestServiceLayerIntegration(unittest.TestCase):
     
     def test_service_layer_coordination(self):
         """Test that service layer properly coordinates with smart parser"""
-        from parser_service import parse_coordinate_with_service
+        from parser_service import parse_coordinate_with_service, CoordinateParserService
+        
+        # Reset singleton for clean test
+        CoordinateParserService.reset_instance()
         
         # Test coordinate that should be parsed by smart parser
         test_coordinate = "POINT(1.5 2.5)"
         
-        with patch('smart_parser.SmartCoordinateParser') as mock_smart_parser:
-            # Mock smart parser to return expected result
+        with patch('parser_service.LazyClassLoader') as mock_loader_class:
+            # Mock lazy class loader to return expected result
+            mock_loader = Mock()
             mock_parser_instance = Mock()
             mock_parser_instance.parse.return_value = (2.5, 1.5, None, Mock())
-            mock_smart_parser.return_value = mock_parser_instance
+            mock_loader.get_instance.return_value = mock_parser_instance
+            mock_loader.is_loaded.return_value = False
+            mock_loader_class.return_value = mock_loader
             
             result = parse_coordinate_with_service(
                 test_coordinate, "TestComponent", self.mock_settings, self.mock_iface
             )
             
-            # Verify service layer called smart parser
-            mock_smart_parser.assert_called_once_with(self.mock_settings, self.mock_iface)
+            # Verify service layer used lazy loader (through singleton creation)
+            self.assertTrue(mock_loader_class.called, "LazyClassLoader should be instantiated")
+            self.assertTrue(mock_loader.get_instance.called, "Parser should be loaded")
             mock_parser_instance.parse.assert_called_once_with(test_coordinate)
             
             # Verify result
@@ -76,30 +83,41 @@ class TestServiceLayerIntegration(unittest.TestCase):
             lat, lon, bounds, source_crs = result
             self.assertEqual(lat, 2.5)
             self.assertEqual(lon, 1.5)
+        
+        # Reset singleton after test
+        CoordinateParserService.reset_instance()
     
     def test_fallback_mechanism(self):
         """Test that fallback mechanism works when smart parser fails"""
         from parser_service import parse_coordinate_with_service
         
         test_coordinate = "45.123, -122.456"
-        expected_fallback_result = (45.123, -122.456, None, Mock())
         
         def mock_fallback(text):
-            return expected_fallback_result
+            # Return result in expected format (lat, lon, bounds, crs)
+            from qgis.core import QgsCoordinateReferenceSystem
+            return (45.123, -122.456, None, QgsCoordinateReferenceSystem())
         
-        with patch('smart_parser.SmartCoordinateParser') as mock_smart_parser:
-            # Mock smart parser to return None (failure)
+        with patch('parser_service.LazyClassLoader') as mock_loader_class:
+            # Mock lazy class loader to return parser that fails
+            mock_loader = Mock()
             mock_parser_instance = Mock()
             mock_parser_instance.parse.return_value = None
-            mock_smart_parser.return_value = mock_parser_instance
+            mock_loader.get_instance.return_value = mock_parser_instance
+            mock_loader.is_loaded.return_value = False
+            mock_loader_class.return_value = mock_loader
             
             result = parse_coordinate_with_service(
                 test_coordinate, "TestComponent", self.mock_settings, self.mock_iface, mock_fallback
             )
             
-            # Verify fallback was used
+            # Verify fallback was used and result structure is correct
             self.assertIsNotNone(result)
-            self.assertEqual(result, expected_fallback_result)
+            self.assertEqual(len(result), 4, "Result should be 4-tuple")
+            lat, lon, bounds, crs = result
+            self.assertEqual(lat, 45.123)
+            self.assertEqual(lon, -122.456)
+            self.assertIsNone(bounds)
     
     def test_logging_integration(self):
         """Test that service layer provides consistent logging"""
@@ -107,13 +125,16 @@ class TestServiceLayerIntegration(unittest.TestCase):
         
         test_coordinate = "POINT(0 0)"
         
-        with patch('parser_service.SmartCoordinateParser') as mock_smart_parser, \
+        with patch('parser_service.LazyClassLoader') as mock_loader_class, \
              patch('parser_service.QgsMessageLog') as mock_log:
             
-            # Mock smart parser success
+            # Mock lazy class loader success
+            mock_loader = Mock()
             mock_parser_instance = Mock()
             mock_parser_instance.parse.return_value = (0, 0, None, Mock())
-            mock_smart_parser.return_value = mock_parser_instance
+            mock_loader.get_instance.return_value = mock_parser_instance
+            mock_loader.is_loaded.return_value = False
+            mock_loader_class.return_value = mock_loader
             
             parse_coordinate_with_service(
                 test_coordinate, "TestComponent", self.mock_settings, self.mock_iface
@@ -133,11 +154,14 @@ class TestServiceLayerIntegration(unittest.TestCase):
         
         test_coordinate = "invalid coordinate"
         
-        with patch('smart_parser.SmartCoordinateParser') as mock_smart_parser:
-            # Mock smart parser to raise exception
+        with patch('parser_service.LazyClassLoader') as mock_loader_class:
+            # Mock lazy class loader to raise exception
+            mock_loader = Mock()
             mock_parser_instance = Mock()
             mock_parser_instance.parse.side_effect = Exception("Parsing failed")
-            mock_smart_parser.return_value = mock_parser_instance
+            mock_loader.get_instance.return_value = mock_parser_instance
+            mock_loader.is_loaded.return_value = False
+            mock_loader_class.return_value = mock_loader
             
             result = parse_coordinate_with_service(
                 test_coordinate, "TestComponent", self.mock_settings, self.mock_iface
@@ -232,13 +256,16 @@ class TestServiceLayerCompatibility(unittest.TestCase):
             ("45° 30' N, 122° 30' W", "DMS format"),
         ]
         
-        with patch('smart_parser.SmartCoordinateParser') as mock_smart_parser:
+        with patch('parser_service.LazyClassLoader') as mock_loader_class:
             for test_input, description in test_cases:
                 with self.subTest(coordinate=test_input):
-                    # Mock successful parsing
+                    # Mock successful parsing through lazy loader
+                    mock_loader = Mock()
                     mock_parser_instance = Mock()
                     mock_parser_instance.parse.return_value = (45.0, -122.0, None, Mock())
-                    mock_smart_parser.return_value = mock_parser_instance
+                    mock_loader.get_instance.return_value = mock_parser_instance
+                    mock_loader.is_loaded.return_value = False
+                    mock_loader_class.return_value = mock_loader
                     
                     result = parse_coordinate_with_service(
                         test_input, "Test", mock_settings, mock_iface

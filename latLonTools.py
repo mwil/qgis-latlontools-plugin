@@ -8,12 +8,23 @@
  *                                                                         *
  ***************************************************************************/
 """
+from typing import Optional, TYPE_CHECKING
 from qgis.PyQt.QtCore import Qt, QTimer, QUrl, QTranslator, QCoreApplication
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMenu, QApplication, QToolButton
-from qgis.core import Qgis, QgsCoordinateTransform, QgsVectorLayer, QgsRectangle, QgsPoint, QgsPointXY, QgsGeometry, QgsWkbTypes, QgsProject, QgsApplication, QgsSettings
+from qgis.core import (
+    Qgis, QgsCoordinateTransform, QgsVectorLayer, QgsRectangle, 
+    QgsPoint, QgsPointXY, QgsGeometry, QgsWkbTypes, QgsProject, 
+    QgsApplication, QgsSettings, QgsCoordinateReferenceSystem
+)
 from qgis.gui import QgsRubberBand
 import processing
+
+if TYPE_CHECKING:
+    from qgis.gui import QgsInterface
+    from .settings import SettingsWidget
+    from .zoomToLatLon import ZoomToLatLon  
+    from .multizoom import MultiZoomWidget
 
 from .latLonFunctions import InitLatLonFunctions, UnloadLatLonFunctions
 from .zoomToLatLon import ZoomToLatLon
@@ -22,6 +33,8 @@ from .settings import SettingsWidget, settings
 from .provider import LatLonToolsProvider
 from .util import epsg4326, tr
 from .captureExtent import getExtentString
+from .extent_operations import ExtentOperations
+from .dialog_manager import DialogManager
 import os
 
 
@@ -32,7 +45,7 @@ class LatLonTools:
     showMapTool = None
     copyExtentTool = None
 
-    def __init__(self, iface):
+    def __init__(self, iface: "QgsInterface") -> None:
         self.iface = iface
         self.canvas = iface.mapCanvas()
         # Initialize the plugin path directory
@@ -58,11 +71,30 @@ class LatLonTools:
         self.toolbar = self.iface.addToolBar(tr('Lat Lon Tools Toolbar'))
         self.toolbar.setObjectName('LatLonToolsToolbar')
         self.toolbar.setToolTip(tr('Lat Lon Tools Toolbar'))
+        
+        # Initialize focused service classes
+        self.extent_operations = ExtentOperations(self.iface, settings)
+        self.dialog_manager = DialogManager(self.iface, self.plugin_dir, self)
+    
+    # Dialog properties that delegate to dialog_manager for backward compatibility
+    @property
+    def settingsDialog(self) -> "SettingsWidget":
+        """Get settings dialog from dialog manager."""
+        return self.dialog_manager.settings_dialog
+    
+    @property
+    def zoomToDialog(self) -> "ZoomToLatLon":
+        """Get zoom to dialog from dialog manager."""
+        return self.dialog_manager.zoom_to_dialog
+    
+    @property
+    def multiZoomDialog(self) -> "MultiZoomWidget":
+        """Get multi-zoom dialog from dialog manager."""
+        return self.dialog_manager.multi_zoom_dialog
 
     def initGui(self):
         '''Initialize Lot Lon Tools GUI.'''
-        # Initialize the Settings Dialog box
-        self.settingsDialog = SettingsWidget(self, self.iface, self.iface.mainWindow())
+        # Settings dialog is now managed by dialog_manager (lazy loading)
 
         # Add Interface for Coordinate Capturing
         icon = QIcon(self.plugin_dir + "/images/copyicon.svg")
@@ -90,8 +122,7 @@ class LatLonTools:
         self.toolbar.addAction(self.zoomToAction)
         self.iface.addPluginToMenu('Lat Lon Tools', self.zoomToAction)
 
-        self.zoomToDialog = ZoomToLatLon(self, self.iface, self.iface.mainWindow())
-        self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.zoomToDialog)
+        # Zoom to dialog is now managed by dialog_manager (lazy loading)
         
         # Initialize and apply plugin enhancements after all dialogs are created
         try:
@@ -113,9 +144,7 @@ class LatLonTools:
         self.toolbar.addAction(self.multiZoomToAction)
         self.iface.addPluginToMenu('Lat Lon Tools', self.multiZoomToAction)
 
-        self.multiZoomDialog = MultiZoomWidget(self, self.settingsDialog, self.iface.mainWindow())
-        self.multiZoomDialog.hide()
-        self.multiZoomDialog.setFloating(True)
+        # Multi-zoom dialog is now managed by dialog_manager (lazy loading)
 
         menu = QMenu()
         menu.setObjectName('latLonToolsCopyExtents')
@@ -283,6 +312,13 @@ class LatLonTools:
     def _fallback_cleanup(self):
         """Comprehensive fallback cleanup when enhanced cleanup is not available"""
         try:
+            # Use dialog manager cleanup first if available
+            if hasattr(self, 'dialog_manager') and self.dialog_manager:
+                try:
+                    self.dialog_manager.cleanup_dialogs()
+                except Exception:
+                    pass
+            
             # Disconnect main plugin signals first - check if objects exist
             if hasattr(self, 'iface') and self.iface:
                 try:
@@ -320,61 +356,9 @@ class LatLonTools:
                 except (RuntimeError, AttributeError):
                     pass
             
-            # Enhanced dialog cleanup with existence checks
-            if hasattr(self, 'zoomToDialog') and self.zoomToDialog:
-                try:
-                    # Disconnect canvas signal if canvas still exists
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.destinationCrsChanged.disconnect(self.zoomToDialog.crsChanged)
-                except (TypeError, RuntimeError, AttributeError):
-                    pass
-                try:
-                    self.zoomToDialog.removeMarker()
-                    if hasattr(self, 'iface') and self.iface:
-                        self.iface.removeDockWidget(self.zoomToDialog)
-                    self.zoomToDialog.close()
-                    self.zoomToDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'multiZoomDialog') and self.multiZoomDialog:
-                try:
-                    # Disconnect canvas signal if canvas still exists
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.destinationCrsChanged.disconnect(self.multiZoomDialog.crsChanged)
-                except (TypeError, RuntimeError, AttributeError):
-                    pass
-                try:
-                    self.multiZoomDialog.removeMarkers()
-                    if hasattr(self, 'iface') and self.iface:
-                        self.iface.removeDockWidget(self.multiZoomDialog)
-                    self.multiZoomDialog.close()
-                    self.multiZoomDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'convertCoordinateDialog') and self.convertCoordinateDialog:
-                try:
-                    if hasattr(self, 'iface') and self.iface:
-                        self.iface.removeDockWidget(self.convertCoordinateDialog)
-                    self.convertCoordinateDialog.close()
-                    self.convertCoordinateDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'digitizerDialog') and self.digitizerDialog:
-                try:
-                    self.digitizerDialog.close()
-                    self.digitizerDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'settingsDialog') and self.settingsDialog:
-                try:
-                    self.settingsDialog.close()
-                    self.settingsDialog.deleteLater()
-                except (RuntimeError, AttributeError):
-                    pass
+            # NOTE: Dialog cleanup is now handled by dialog_manager.cleanup_dialogs() 
+            # Dialogs are @property methods that delegate to dialog_manager
+            # We don't try to access or cleanup individual dialogs here
                     
             # Cleanup map tools - check existence first
             if hasattr(self, 'mapTool') and self.mapTool:
@@ -449,18 +433,32 @@ class LatLonTools:
             except:
                 pass
         
-        # Clear all references - set to None even if they don't exist
-        self.zoomToDialog = None
-        self.multiZoomDialog = None
-        self.settingsDialog = None
-        self.convertCoordinateDialog = None
-        self.digitizerDialog = None
-        self.showMapTool = None
-        self.mapTool = None
-        self.copyExtentTool = None
-        self.crossRb = None
-        self.translator = None
-        self.toolbar = None
+        # Clear non-dialog references only (dialogs are managed by dialog_manager)
+        # NOTE: Cannot set dialog properties to None - they are read-only @property methods
+        try:
+            self.showMapTool = None
+        except AttributeError:
+            pass
+        try:
+            self.mapTool = None
+        except AttributeError:
+            pass
+        try:
+            self.copyExtentTool = None
+        except AttributeError:
+            pass
+        try:
+            self.crossRb = None
+        except AttributeError:
+            pass
+        try:
+            self.translator = None
+        except AttributeError:
+            pass
+        try:
+            self.toolbar = None
+        except AttributeError:
+            pass
         
         # Remove processing provider - check existence
         try:
@@ -507,29 +505,8 @@ class LatLonTools:
         self.iface.messageBar().pushMessage("", "'{}' {}".format(outStr, tr('copied to the clipboard')), level=Qgis.Info, duration=4)
 
     def copySelectedFeaturesExtent(self):
-        layer = self.iface.activeLayer()
-        if not layer or not layer.isValid():
-            return
-        if isinstance(layer, QgsVectorLayer) and (layer.featureCount() == 0):
-            self.iface.messageBar().pushMessage("", tr("This layer has no features - A bounding box cannot be calculated."), level=Qgis.Warning, duration=4)
-            return
-        if isinstance(layer, QgsVectorLayer):
-            extent = layer.boundingBoxOfSelected()
-            if extent.isNull():
-                self.iface.messageBar().pushMessage("", tr("No features were selected."), level=Qgis.Warning, duration=4)
-                return
-        else:
-            extent = layer.extent()
-        src_crs = layer.crs()
-        if settings.bBoxCrs == 0:
-            dst_crs = epsg4326
-        else:
-            dst_crs = self.canvas.mapSettings().destinationCrs()
-        
-        outStr = getExtentString(extent, src_crs, dst_crs)
-        clipboard = QApplication.clipboard()
-        clipboard.setText(outStr)
-        self.iface.messageBar().pushMessage("", "'{}' {}".format(outStr, tr('copied to the clipboard')), level=Qgis.Info, duration=4)
+        """Copy selected features extent to clipboard."""
+        self.extent_operations.copy_selected_features_extent()
 
     def copyCanvas(self):
         extent = self.iface.mapCanvas().extent()

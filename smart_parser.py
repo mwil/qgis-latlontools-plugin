@@ -438,12 +438,12 @@ class UtmParserStrategy(CoordinateParserStrategy):
         try:
             # Handle both plugin context and standalone testing
             try:
-                from .utm import utm2Point
+                from .utm import utm_to_point
             except ImportError:
-                from utm import utm2Point
+                from utm import utm_to_point
             
             # Let mature UTM library handle validation and parsing
-            pt = utm2Point(text)
+            pt = utm_to_point(text)
             lat, lon = pt.y(), pt.x()
             self._log_debug(f"UTM parsed: {text} → lat={lat}, lon={lon}")
             return (lat, lon, None, epsg4326, "UTM")

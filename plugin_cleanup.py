@@ -337,26 +337,44 @@ class SafePluginCleanup:
         if not hasattr(self, 'plugin') or not self.plugin:
             return
             
-        # Clear dialog references - set to None even if they don't exist
-        self.plugin.zoomToDialog = None
-        self.plugin.multiZoomDialog = None
-        self.plugin.settingsDialog = None
-        self.plugin.convertCoordinateDialog = None
-        self.plugin.digitizerDialog = None
+        # NOTE: Cannot clear dialog references - they are @property methods that delegate to dialog_manager
+        # The dialogs are now managed by DialogManager and are read-only properties
+        # Dialog cleanup is handled by dialog_manager.cleanup_dialogs() method
         
         # Clear map tool references  
-        self.plugin.mapTool = None
-        self.plugin.showMapTool = None
-        self.plugin.copyExtentTool = None
+        try:
+            self.plugin.mapTool = None
+        except AttributeError:
+            pass
+        
+        try:
+            self.plugin.showMapTool = None
+        except AttributeError:
+            pass
+            
+        try:
+            self.plugin.copyExtentTool = None
+        except AttributeError:
+            pass
         
         # Clear other Qt object references
-        self.plugin.crossRb = None
-        self.plugin.translator = None
+        try:
+            self.plugin.crossRb = None
+        except AttributeError:
+            pass
+            
+        try:
+            self.plugin.translator = None
+        except AttributeError:
+            pass
         
         # Don't delete toolbar here as it's done in _cleanup_toolbar
         # But set reference to None
         if hasattr(self.plugin, 'toolbar'):
-            self.plugin.toolbar = None
+            try:
+                self.plugin.toolbar = None
+            except AttributeError:
+                pass
 
 
 class SafeDockWidgetCleanup:

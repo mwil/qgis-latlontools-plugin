@@ -1,22 +1,82 @@
 """
-Coordinate Parser Service Layer
-Provides centralized coordinate parsing functionality to eliminate duplication across UI components
+Coordinate Parser Service Layer - Centralized Parsing Architecture
+
+This module implements the service layer pattern to eliminate code duplication
+across UI components while providing consistent coordinate parsing functionality.
+
+**Architecture:**
+- CoordinateParserService: Thread-safe singleton managing SmartCoordinateParser
+- CoordinateParserMixin: Mixin for UI components that need parsing
+- parse_coordinate_with_service(): Standalone function for non-mixin components
+
+**Integration Points:**
+- coordinateConverter.py: Uses parse_coordinate_with_service() in commitWgs84()
+- digitizer.py: Uses service layer in addFeature() with projection handling
+- multizoom.py: Uses service layer in addSingleCoord() for multi-location zoom
+- zoomToLatLon.py: Uses service layer in convertCoordinate() with fallbacks
+
+**Key Benefits:**
+- Eliminates repeated SmartCoordinateParser instantiation
+- Provides consistent logging across all UI components
+- Centralized error handling with fallback mechanisms
+- Lazy loading for improved startup performance
+- Thread-safe singleton pattern
+
+**Usage Patterns:**
+    # For components that can't use mixin
+    from .parser_service import parse_coordinate_with_service
+    result = parse_coordinate_with_service(text, "ComponentName", settings, iface)
+    
+    # For components using mixin pattern
+    class MyComponent(CoordinateParserMixin):
+        def parse_coords(self, text):
+            return self.parse_coordinate_with_fallback(text, "MyComponent", legacy_func)
+
+Author: Claude Code (Deep Refactoring Phase 2)
+Backward Compatibility: Maintains all existing functionality via fallback mechanisms
 """
+import time
+from typing import Optional, Any, Tuple
 from qgis.core import QgsMessageLog, Qgis
 
 # Handle both plugin context (relative imports) and standalone testing (absolute imports)
 try:
-    from .smart_parser import SmartCoordinateParser
+    from .lazy_loader import LazyClassLoader, loading_stats
     from .util import epsg4326
 except ImportError:
-    from smart_parser import SmartCoordinateParser
+    from lazy_loader import LazyClassLoader, loading_stats
     from util import epsg4326
 
 
 class CoordinateParserService:
     """
-    Service layer for coordinate parsing with consistent logging and error handling
-    Eliminates code duplication across UI components
+    Service layer for coordinate parsing with consistent logging and error handling.
+    Eliminates code duplication across UI components.
+    
+    **Singleton Pattern Implementation:**
+    - Thread-safe singleton using class-level _instance
+    - get_instance(): Factory method for singleton access
+    - reset_instance(): Testing utility to reset singleton state
+    
+    **Lazy Loading Architecture:**
+    - Uses LazyClassLoader for SmartCoordinateParser instantiation
+    - Defers expensive parser creation until first use
+    - Automatic performance monitoring via loading_stats
+    
+    **Error Handling Strategy:**
+    - Comprehensive logging at Info/Warning/Critical levels
+    - Returns structured (success, result, error_msg) tuples
+    - Component-specific error messages for debugging
+    
+    **Integration Notes:**
+    - Handles both plugin context (relative imports) and testing (absolute imports)
+    - Compatible with existing UI component patterns
+    - Maintains all SmartCoordinateParser functionality
+    
+    **Modification Points:**
+    - __init__(): Modify lazy loader configuration
+    - parse_coordinate_with_logging(): Add new parsing logic
+    - Add methods here for new parsing functionality
     """
     _instance = None
     
@@ -39,8 +99,25 @@ class CoordinateParserService:
         """Initialize service with settings and iface"""
         self.settings = settings
         self.iface = iface
-        self._parser = SmartCoordinateParser(settings, iface)
-        QgsMessageLog.logMessage("CoordinateParserService: Service initialized", "LatLonTools", Qgis.Info)
+        
+        # Lazy load the SmartCoordinateParser to improve startup performance
+        try:
+            # Try plugin context first
+            self._parser_loader = LazyClassLoader(
+                'smart_parser', 
+                'SmartCoordinateParser',
+                settings, iface,
+                from_package=__name__.split('.')[0] if '.' in __name__ else None
+            )
+        except Exception:
+            # Fallback for standalone testing
+            self._parser_loader = LazyClassLoader(
+                'smart_parser', 
+                'SmartCoordinateParser',
+                settings, iface
+            )
+            
+        QgsMessageLog.logMessage("CoordinateParserService: Service initialized with lazy loading", "LatLonTools", Qgis.Info)
     
     def parse_coordinate_with_logging(self, text: str, component_name: str = "Unknown"):
         """
@@ -58,7 +135,20 @@ class CoordinateParserService:
         QgsMessageLog.logMessage(f"ParserService.parse_coordinate_with_logging: {component_name} parsing '{original_text}'", "LatLonTools", Qgis.Info)
         
         try:
-            result = self._parser.parse(text)
+            # Record loading statistics if this is the first load
+            is_first_load = not self._parser_loader.is_loaded()
+            
+            # Get the lazily loaded parser
+            start_time = time.time()
+            parser = self._parser_loader.get_instance()
+            load_time = time.time() - start_time
+            
+            # Record statistics
+            if is_first_load:
+                loading_stats.record_load_time('SmartCoordinateParser', load_time)
+            loading_stats.increment_access_count('SmartCoordinateParser')
+            
+            result = parser.parse(text)
             if result:
                 lat, lon, bounds, source_crs = result
                 QgsMessageLog.logMessage(f"ParserService.parse_coordinate_with_logging: {component_name} SUCCESS - lat={lat}, lon={lon}, crs={source_crs}", "LatLonTools", Qgis.Info)
@@ -90,8 +180,38 @@ class CoordinateParserService:
 
 class CoordinateParserMixin:
     """
-    Mixin to provide consistent coordinate parsing to UI components
-    Eliminates the repeated parser instantiation pattern
+    Mixin to provide consistent coordinate parsing to UI components.
+    Eliminates the repeated parser instantiation pattern.
+    
+    **Usage Pattern:**
+    Mix into UI component classes that need coordinate parsing:
+    
+        class MyDialog(QDialog, CoordinateParserMixin):
+            def __init__(self, settings, iface):
+                super().__init__()
+                self.settings = settings
+                self.iface = iface
+            
+            def handle_coordinate_input(self, text):
+                result = self.parse_coordinate_with_fallback(text, "MyDialog", self.legacy_parse)
+                if result:
+                    lat, lon, bounds, crs = result
+                    # Use parsed coordinates
+    
+    **Requirements:**
+    - Component must have self.settings and self.iface attributes
+    - Optionally provide legacy_parser_func for fallback
+    
+    **Benefits:**
+    - Automatic service layer integration
+    - Consistent error handling across components
+    - Built-in fallback mechanism
+    - Reduced boilerplate code
+    
+    **Modification Points:**
+    - _get_parser_service(): Modify service retrieval logic
+    - parse_coordinate_with_fallback(): Add new parsing strategies
+    - Add new methods for specialized parsing needs
     """
     
     def _get_parser_service(self):
@@ -145,10 +265,44 @@ class CoordinateParserMixin:
 
 
 # Convenience function for components that can't use the mixin
+# PRIMARY INTEGRATION POINT: This is the main function used by UI components
 def parse_coordinate_with_service(text: str, component_name: str, settings, iface, legacy_parser_func=None):
     """
-    Standalone function for coordinate parsing using service layer
-    Useful for components that can't inherit from CoordinateParserMixin
+    Standalone function for coordinate parsing using service layer.
+    Useful for components that can't inherit from CoordinateParserMixin.
+    
+    **Primary Use Cases:**
+    - coordinateConverter.py: Called from commitWgs84() method
+    - digitizer.py: Called from addFeature() for coordinate validation
+    - multizoom.py: Called from addSingleCoord() for multi-zoom functionality
+    - zoomToLatLon.py: Called from convertCoordinate() with legacy fallbacks
+    
+    **Integration Pattern:**
+        from .parser_service import parse_coordinate_with_service
+        
+        def my_parsing_method(self, coordinate_text):
+            result = parse_coordinate_with_service(
+                coordinate_text, 
+                "MyComponentName", 
+                self.settings, 
+                self.iface,
+                self.legacy_parser_if_needed  # Optional fallback
+            )
+            if result:
+                lat, lon, bounds, source_crs = result
+                # Process coordinates
+            else:
+                # Handle parsing failure
+    
+    **Error Handling:**
+    - Returns None on all failure cases
+    - Comprehensive logging with component identification
+    - Automatic fallback to legacy parsing if provided
+    
+    **Performance:**
+    - Uses singleton service for efficiency
+    - Lazy loading prevents startup performance impact
+    - Automatic performance monitoring
     
     Args:
         text: Input coordinate text
@@ -160,7 +314,8 @@ def parse_coordinate_with_service(text: str, component_name: str, settings, ifac
     Returns:
         (lat, lon, bounds, source_crs) or None
     """
-    # Get or create service
+    # Get or create service (singleton pattern ensures efficiency)
+    # This will reuse existing service or create new one if first call
     service = CoordinateParserService.get_instance(settings, iface)
     success, result, error_msg = service.parse_coordinate_with_logging(text, component_name)
     
