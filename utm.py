@@ -153,7 +153,7 @@ def utm_parse(utm_str: str) -> tuple:
             raise UtmException(f"Invalid UTM coordinate values: {e}")
             
         # Ignore elevation (m.group(5))
-        return(zone, hemisphere, easting, northing)
+        return zone, hemisphere, easting, northing
     
     # Standard UTM without elevation: "33 N 315428 5741324"
     m = re.match(r'(\d+)\s*([NS])\s+(\d+\.?\d*)\s+(\d+\.?\d*)', utm)
@@ -174,20 +174,20 @@ def utm_parse(utm_str: str) -> tuple:
         except CoordinateValidationError as e:
             raise UtmException(f"Invalid UTM coordinate values: {e}")
             
-        return(zone, hemisphere, easting, northing)
+        return zone, hemisphere, easting, northing
     
     # Handle alternative formats with elevation: "315428mE 5741324mN 33N 1234m" 
-    m = re.match((
-        r'(?P<easting>\d+\.?\d*)\s*M?\s*E\s*,?\s*'
-        r'(?P<northing>\d+\.?\d*)\s*M?\s*N\s*,?\s*'
-        r'(?P<zone>\d+)\s*(?P<hemisphere>[NS])'
-        r'(?:\s*,?\s*(?P<elevation>\d+\.?\d*)\s*M?)?'), utm, re.IGNORECASE)
+    m = re.match(r'(?P<easting>\d+\.?\d*)\s*M?\s*E\s*,?\s*'
+                 r'(?P<northing>\d+\.?\d*)\s*M?\s*N\s*,?\s*'
+                 r'(?P<zone>\d+)\s*(?P<hemisphere>[NS])'
+                 r'(?:\s*,?\s*(?P<elevation>\d+\.?\d*)\s*M?)?', utm, re.IGNORECASE)
     if m:
         zone = int(m.group('zone'))
         if zone < 1 or zone > 60:
             raise UtmException(tr('Invalid UTM Coordinate'))
         hemisphere = m.group('hemisphere')
-        if hemisphere.upper() != 'N' and hemisphere.upper() != 'S':
+        hemisphere_upper = hemisphere.upper()
+        if hemisphere_upper != 'N' and hemisphere_upper != 'S':
             raise UtmException(tr('Invalid UTM Coordinate'))
         easting = float(m.group('easting'))
         northing = float(m.group('northing'))
