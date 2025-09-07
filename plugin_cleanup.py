@@ -340,7 +340,7 @@ class SafePluginCleanup:
         # NOTE: Cannot clear dialog references - they are @property methods that delegate to dialog_manager
         # The dialogs are now managed by DialogManager and are read-only properties
         # Dialog cleanup is handled by dialog_manager.cleanup_dialogs() method,
-        # which is called during plugin unload in the _fallback_cleanup() method of LatLonTools class.
+        # which is called during plugin unload in the safe_unload() method of this class.
         
         # Clear map tool references  
         try:
