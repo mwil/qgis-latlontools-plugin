@@ -181,16 +181,24 @@ def utm_parse(utm_str: str) -> tuple:
         r'(?P<easting>\d+\.?\d*)\s*M?\s*E\s*,?\s*'
         r'(?P<northing>\d+\.?\d*)\s*M?\s*N\s*,?\s*'
         r'(?P<zone>\d+)\s*(?P<hemisphere>[NS])'
-        r'(?:\s*,?\s*\d+\.?\d*\s*M?)?'), utm, re.IGNORECASE)
+        r'(?:\s*,?\s*(?P<elevation>\d+\.?\d*)\s*M?)?'), utm, re.IGNORECASE)
     if m:
         zone = int(m.group('zone'))
         if zone < 1 or zone > 60:
             raise UtmException(tr('Invalid UTM Coordinate'))
-        hemisphere = m.group('hemisphere').upper()
-        if hemisphere != 'N' and hemisphere != 'S':
+        hemisphere = m.group('hemisphere')
+        if hemisphere.upper() != 'N' and hemisphere.upper() != 'S':
             raise UtmException(tr('Invalid UTM Coordinate'))
         easting = float(m.group('easting'))
         northing = float(m.group('northing'))
+        
+        # Validate extracted coordinate values
+        try:
+            InputValidator.validate_numeric_range(easting, 100000, 999999, "UTM easting")
+            InputValidator.validate_numeric_range(northing, 0, 10000000, "UTM northing")
+        except CoordinateValidationError as e:
+            raise UtmException(f"Invalid UTM coordinate values: {e}")
+            
         return zone, hemisphere, easting, northing
     
     # Handle format "315428E 5741324N 33 N" with optional elevation
@@ -204,7 +212,15 @@ def utm_parse(utm_str: str) -> tuple:
             raise UtmException(tr('Invalid UTM Coordinate'))
         easting = float(m.group(1))
         northing = float(m.group(2))
-        return(zone, hemisphere, easting, northing)
+        
+        # Validate extracted coordinate values
+        try:
+            InputValidator.validate_numeric_range(easting, 100000, 999999, "UTM easting")
+            InputValidator.validate_numeric_range(northing, 0, 10000000, "UTM northing")
+        except CoordinateValidationError as e:
+            raise UtmException(f"Invalid UTM coordinate values: {e}")
+            
+        return zone, hemisphere, easting, northing
     
     raise UtmException('Invalid UTM Coordinate')
 
