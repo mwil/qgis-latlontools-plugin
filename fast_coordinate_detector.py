@@ -3,7 +3,26 @@ Fast Coordinate Format Detection System
 Optimized for performance - uses pattern matching to route directly to appropriate parsers
 """
 import re
-from qgis.core import QgsMessageLog, Qgis
+
+# Handle QGIS imports - graceful degradation for testing environments
+try:
+    from qgis.core import QgsMessageLog, Qgis
+    QGIS_AVAILABLE = True
+except ImportError:
+    # Mock QGIS components for testing
+    class MockQgsMessageLog:
+        @staticmethod
+        def logMessage(message, tag, level):
+            pass  # Silent in test environments
+    
+    class MockQgis:
+        Info = 0
+        Warning = 1
+        Critical = 2
+    
+    QgsMessageLog = MockQgsMessageLog()
+    Qgis = MockQgis()
+    QGIS_AVAILABLE = False
 
 # Pre-compiled regex patterns for maximum performance
 COORDINATE_PATTERNS = {
