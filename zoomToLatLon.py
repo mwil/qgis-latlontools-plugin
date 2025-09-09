@@ -438,11 +438,17 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
         self.settings.showTab(1)
 
     def xyButtonClicked(self):
+        # Store the current coordinate text to preserve it during configuration
+        current_text = self.coordTxt.text()
+        
         if self.settings.zoomToCoordOrder == 0:
             self.settings.setZoomToCoordOrder(1)
         else:
             self.settings.setZoomToCoordOrder(0)
         self.configure()
+        
+        # Restore the coordinate text after configuration
+        self.coordTxt.setText(current_text)
 
     def crsTriggered(self, action):
         selection_id = action.data()
