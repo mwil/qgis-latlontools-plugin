@@ -208,9 +208,9 @@ class OptimizedCoordinateParser:
             except ImportError:
                 from settings import CoordOrder
             if self.smart_parser.settings.zoomToCoordOrder == CoordOrder.OrderYX:
-                lat, lon = y, x  # First number is latitude (Y), second is longitude (X)
+                lat, lon = x, y  # OrderYX: Input format is "Lat, Lon" so x=lat, y=lon
             else:
-                lat, lon = x, y  # First number is longitude (X), second is latitude (Y)
+                lat, lon = y, x  # OrderXY: Input format is "Lon, Lat" so x=lon, y=lat
             
             # Validate ranges
             if not (-90 <= lat <= 90 and -180 <= lon <= 180):
