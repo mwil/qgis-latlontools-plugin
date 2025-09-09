@@ -50,7 +50,7 @@ COORDINATE_PATTERNS = {
 
 # Fast validation patterns to avoid expensive parsing
 INVALID_PATTERNS = {
-    'obviously_projected': re.compile(r'^\s*[+-]?(?:\d{4,})\.?\d*[\s,;]+[+-]?(?:\d{5,})\.?\d*\s*$'),  # UTM-like, not valid lat/lon
+    'obviously_projected': re.compile(r'^\s*[+-]?(?:\d{4,})\.?\d*[\s,;]+[+-]?(?:\d{5,})\.?\d*\s*$|^\s*[+-]?(?:\d{5,})\.?\d*[\s,;]+[+-]?(?:\d{4,})\.?\d*\s*$'),  # UTM-like: 4+ and 5+ digits in either order
     'too_many_digits': re.compile(r'\d{8,}'),  # Very long numbers
     'invalid_chars': re.compile(r'[^0-9a-zA-Z\s\.,;:+\-°′″\'\"NSEW\(\)\{\}]'),  # Invalid characters
 }
@@ -216,7 +216,8 @@ class OptimizedCoordinateParser:
         try:
             # Extract numbers using pre-compiled regex
             numbers = re.findall(r'[+-]?\d*\.?\d+(?:[eE][+-]?\d+)?', text)
-            if len(numbers) < 2:
+            if len(numbers) != 2:
+                # Require exactly 2 numbers for decimal degrees
                 return None
             
             x, y = float(numbers[0]), float(numbers[1])

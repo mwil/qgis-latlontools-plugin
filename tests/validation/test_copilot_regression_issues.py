@@ -54,10 +54,10 @@ class TestCopilotRegressionIssues(unittest.TestCase):
         """
         COPILOT ISSUE #1: Decimal degrees regex too restrictive
         
-        Original regex: r'^[+-]?\\d{1,3}\\.?\\d*[\\s,;]+[+-]?\\d{1,3}\\.?\\d*\\s*$'
+        Original regex: r'^[+-]?\d{1,3}\.?\d*[\s,;]+[+-]?\d{1,3}\.?\d*\s*$'
         Problem: Required at least one digit before decimal point - wouldn't match .5, .75
-        Fixed regex: r'^[+-]?\\d*\\.?\\d+[\\s,;]+[+-]?\\d*\\.?\\d+\\s*$'
-        Solution: Changed \\d{1,3} to \\d* and \\d* to \\d+ to allow leading decimals
+        Fixed regex: r'^[+-]?\d*\.?\d+[\s,;]+[+-]?\d*\.?\d+\s*$'
+        Solution: Changed \d{1,3} to \d* and \d* to \d+ to allow leading decimals
         """
         pattern = self.patterns['decimal_degrees']
         
@@ -157,9 +157,9 @@ class TestCopilotRegressionIssues(unittest.TestCase):
         """
         COPILOT ISSUE #3: "Obviously projected" pattern too broad
         
-        Original regex: r'^\\s*\\d{5,7}\\.?\\d*[\\s,;]+\\d{6,8}\\.?\\d*\\s*$'
+        Original regex: r'^\s*\d{5,7}\.?\d*[\s,;]+\d{6,8}\.?\d*\s*$'
         Problem: Could filter out valid geographic coordinates with many decimal places
-        Fixed regex: r'^\\s*[+-]?(?:\\d{4,})\\.?\\d*[\\s,;]+[+-]?(?:\\d{5,})\\.?\\d*\\s*$'
+        Fixed regex: r'^\s*[+-]?(?:\d{6,})\.?\d*[\s,;]+[+-]?(?:\d{6,})\.?\d*\s*$'
         Solution: More specific pattern that targets coordinates with >=1000 in first number
         """
         pattern = self.invalid_patterns['obviously_projected']
