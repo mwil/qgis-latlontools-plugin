@@ -8,7 +8,7 @@ from qgis.core import QgsMessageLog, Qgis
 # Pre-compiled regex patterns for maximum performance
 COORDINATE_PATTERNS = {
     # Most common formats first (performance optimization)
-    'decimal_degrees': re.compile(r'^[+-]?\d{1,3}\.?\d*[\s,;]+[+-]?\d{1,3}\.?\d*\s*$'),
+    'decimal_degrees': re.compile(r'^[+-]?\d*\.?\d+[\s,;]+[+-]?\d*\.?\d+\s*$'),
     'dms_symbols': re.compile(r'[\u00b0\u2032\u2033\'\"°′″]'),  # Degree, minute, second symbols
     'dms_letters': re.compile(r'\d+[°\s]*\d*[\'′\s]*\d*[\.\d]*[\"″\s]*[NSEW]', re.IGNORECASE),
     
@@ -31,7 +31,7 @@ COORDINATE_PATTERNS = {
 
 # Fast validation patterns to avoid expensive parsing
 INVALID_PATTERNS = {
-    'obviously_projected': re.compile(r'^\s*\d{5,7}\.?\d*[\s,;]+\d{6,8}\.?\d*\s*$'),  # UTM-like
+    'obviously_projected': re.compile(r'^\s*[+-]?(?:\d{4,})\.?\d*[\s,;]+[+-]?(?:\d{5,})\.?\d*\s*$'),  # UTM-like, not valid lat/lon
     'too_many_digits': re.compile(r'\d{8,}'),  # Very long numbers
     'invalid_chars': re.compile(r'[^0-9a-zA-Z\s\.,;:+\-°′″\'\"NSEW\(\)\{\}]'),  # Invalid characters
 }
@@ -208,9 +208,9 @@ class OptimizedCoordinateParser:
             except ImportError:
                 from settings import CoordOrder
             if self.smart_parser.settings.zoomToCoordOrder == CoordOrder.OrderYX:
-                lat, lon = x, y  # First number is latitude
+                lat, lon = y, x  # First number is latitude (Y), second is longitude (X)
             else:
-                lat, lon = y, x  # First number is longitude
+                lat, lon = x, y  # First number is longitude (X), second is latitude (Y)
             
             # Validate ranges
             if not (-90 <= lat <= 90 and -180 <= lon <= 180):

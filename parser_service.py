@@ -102,8 +102,12 @@ class CoordinateParserService:
                     try:
                         cls._instance._parser_loader.reset()  # Reset lazy loader
                         cls._instance._parser_loader = None
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # Log cleanup failures for debugging, but continue with reset
+                        try:
+                            QgsMessageLog.logMessage(f"Warning: Failed to reset parser loader during cleanup: {e}", "LatLonTools", Qgis.Warning)
+                        except:
+                            pass  # Even logging might fail during shutdown
                 
                 if hasattr(cls._instance, '_optimized_parser'):
                     cls._instance._optimized_parser = None
@@ -114,9 +118,12 @@ class CoordinateParserService:
                 if hasattr(cls._instance, 'iface'):
                     cls._instance.iface = None
                     
-            except Exception:
+            except Exception as e:
                 # If cleanup fails, still proceed with instance reset
-                pass
+                try:
+                    QgsMessageLog.logMessage(f"Warning: Exception during singleton cleanup: {e}", "LatLonTools", Qgis.Warning)
+                except:
+                    pass  # Even logging might fail during shutdown
         
         # Finally reset the singleton reference
         cls._instance = None
