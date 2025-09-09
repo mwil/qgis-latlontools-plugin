@@ -178,6 +178,8 @@ class TestCopilotRegressionIssues(unittest.TestCase):
             ('12345, 67890', 'Large UTM-like numbers'),
             ('500000, 4000000', 'Typical UTM coordinates'),  
             ('1234.567, 56789.012', 'UTM with decimals'),
+            ('1234, 5678', 'Consistent 4+ digit pattern'),
+            ('5678, 1234', 'Consistent 4+ digit pattern (reversed)'),
         ]
         
         for case, description in obviously_projected_cases:

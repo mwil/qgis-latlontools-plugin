@@ -63,22 +63,14 @@ INVALID_PATTERNS = {
         r'''
         ^\s*                # Optional leading whitespace
         [+-]?               # Optional sign
-        (?:\d{4,})\.?\d*    # 4+ digits (easting or northing), optional decimal
+        (?:\d{4,})\.?\d*    # 4+ digits (easting), optional decimal
         [\s,;]+             # Separator(s)
         [+-]?               # Optional sign
-        (?:\d{5,})\.?\d*    # 5+ digits (northing or easting), optional decimal
+        (?:\d{4,})\.?\d*    # 4+ digits (northing), optional decimal
         \s*$                # Optional trailing whitespace
-        |                   # OR: reverse order
-        ^\s*
-        [+-]?
-        (?:\d{5,})\.?\d*
-        [\s,;]+
-        [+-]?
-        (?:\d{4,})\.?\d*
-        \s*$
         ''',
         re.VERBOSE
-    ),  # UTM-like: 4+ and 5+ digits in either order
+    ),  # UTM-like: consistent 4+ digits for both coordinates
     'too_many_digits': re.compile(r'\d{8,}'),  # Very long numbers
     'invalid_chars': re.compile(r'[^0-9a-zA-Z\s\.,;:+\-°′″\'\"NSEW\(\)\{\}]'),  # Invalid characters
 }
