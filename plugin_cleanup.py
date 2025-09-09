@@ -27,6 +27,19 @@ class SafePluginCleanup:
         self.plugin._is_unloading = True
         
         try:
+            # CRITICAL: Reset parser service singleton to prevent QGIS hanging during reload
+            try:
+                from .parser_service import CoordinateParserService
+                CoordinateParserService.reset_instance()
+                from qgis.core import QgsMessageLog, Qgis
+                QgsMessageLog.logMessage("LatLonTools: CoordinateParserService singleton reset (enhanced cleanup)", "LatLonTools", Qgis.Info)
+            except Exception as e:
+                try:
+                    from qgis.core import QgsMessageLog, Qgis
+                    QgsMessageLog.logMessage(f"LatLonTools: Failed to reset CoordinateParserService in enhanced cleanup: {e}", "LatLonTools", Qgis.Warning)
+                except:
+                    pass
+            
             # Disconnect main plugin signals first
             self._disconnect_main_signals()
             
