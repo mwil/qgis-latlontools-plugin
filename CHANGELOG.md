@@ -7,16 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.12.0] - 2025-01-09
+
 ### Added
-- **Bulletproof Plugin Reload**: Comprehensive resource cleanup system preventing duplicate panels and exceptions during plugin reload
+- **High-Performance Coordinate Detection**: FastCoordinateDetector with up to 10x faster format detection using pre-compiled regex patterns
+- **Optimized Coordinate Parser**: OptimizedCoordinateParser with smart routing to appropriate parsers and performance monitoring
+- **Comprehensive Regex Test Coverage**: Copilot regression tests preventing coordinate parsing regressions
+- **UI Input Preservation**: Coordinate input is now preserved when toggling coordinate order preferences
+- **Repository Cleanup**: Comprehensive .gitignore preventing Python cache files and IDE artifacts from being committed
 
 ### Fixed
+- **Regex Pattern Consistency**: Fixed asymmetric digit requirements in obviously_projected pattern for consistent UTM coordinate detection
+- **GitHub Copilot Issues**: Addressed 5 code quality issues including regex documentation, performance optimizations, and error handling
+- **Coordinate Assignment Logic**: Corrected coordinate order interpretation for OrderYX/OrderXY preferences
 - **Plugin Reload Issues**: Fixed duplicate panel creation and AttributeError exceptions during plugin unload/reload cycles  
 - **Resource Leaks**: Enhanced signal disconnection and Qt widget lifecycle management to prevent orphaned resources
 
 ### Changed
-- **Error Handling**: Improved defensive programming with triple-layer exception handling across cleanup operations
-- **Import Organization**: Moved all imports to module level for better stability during plugin shutdown
+- **Performance Architecture**: Service layer now uses OptimizedCoordinateParser with fast format detection and lazy loading
+- **Error Handling**: Refactored nested try-except blocks into separate helper methods for better maintainability
+- **Code Quality**: Improved regex readability with re.VERBOSE patterns and removed print statements from unit tests
+- **Import Organization**: Moved imports out of performance-critical parsing loops to module level
 
 ---
 
