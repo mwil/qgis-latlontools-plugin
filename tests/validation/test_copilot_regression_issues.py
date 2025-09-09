@@ -57,7 +57,7 @@ class TestCopilotRegressionIssues(unittest.TestCase):
         Original regex: r'^[+-]?\d{1,3}\.?\d*[\s,;]+[+-]?\d{1,3}\.?\d*\s*$'
         Problem: Required at least one digit before decimal point - wouldn't match .5, .75
         Fixed regex: r'^[+-]?\d*\.?\d+[\s,;]+[+-]?\d*\.?\d+\s*$'
-        Solution: Changed \d{1,3} to \d* and \d* to \d+ to allow leading decimals
+        Solution: Updated regex to use \d* before the decimal and \d+ after, allowing leading decimals (e.g., '.5') by permitting zero or more digits before the decimal and requiring at least one digit after.
         """
         pattern = self.patterns['decimal_degrees']
         # Current regex being tested: r'^[+-]?\d*\.?\d+[\s,;]+[+-]?\d*\.?\d+\s*$'
