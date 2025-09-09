@@ -312,6 +312,19 @@ class LatLonTools:
     def _fallback_cleanup(self):
         """Comprehensive fallback cleanup when enhanced cleanup is not available"""
         try:
+            # CRITICAL: Reset parser service singleton to prevent QGIS hanging during reload
+            try:
+                from .parser_service import CoordinateParserService
+                CoordinateParserService.reset_instance()
+                from qgis.core import QgsMessageLog, Qgis
+                QgsMessageLog.logMessage("LatLonTools: CoordinateParserService singleton reset", "LatLonTools", Qgis.Info)
+            except Exception as e:
+                try:
+                    from qgis.core import QgsMessageLog, Qgis
+                    QgsMessageLog.logMessage(f"LatLonTools: Failed to reset CoordinateParserService: {e}", "LatLonTools", Qgis.Warning)
+                except:
+                    pass
+            
             # Use dialog manager cleanup first if available
             if hasattr(self, 'dialog_manager') and self.dialog_manager:
                 try:

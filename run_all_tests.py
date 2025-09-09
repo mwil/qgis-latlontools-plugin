@@ -232,6 +232,7 @@ class TestRunner:
             'tests/validation/test_real_world_coordinate_scenarios.py',
             'tests/validation/test_smart_parser_validation.py',
             'tests/validation/test_comprehensive_edge_cases.py',
+            'tests/validation/test_copilot_regression_issues.py',
         ]
         
         passed = 0

@@ -10,7 +10,7 @@ else
     PYTHON = python
 endif
 
-PY_FILES = __init__.py captureCoordinate.py captureExtent.py coordinateConverter.py copyLatLonTool.py dialog_manager.py digitizer.py ecef.py enhanced_settings.py extent_operations.py field2geom.py geohash.py geom2field.py geom2wkt.py georef.py input_validation.py latLonFunctions.py latLonTools.py latLonToolsProcessing.py lazy_loader.py maidenhead.py mapProviders.py mgrs.py mgrstogeom.py multizoom.py olc.py parser_service.py pluscodes.py plugin_cleanup.py plugin_enhancements.py provider.py run_all_tests.py settings.py showOnMapTool.py smart_parser.py text_preservation.py tomgrs.py ups.py util.py utm.py wkt2layers.py zoomToLatLon.py
+PY_FILES = __init__.py captureCoordinate.py captureExtent.py coordinateConverter.py copyLatLonTool.py dialog_manager.py digitizer.py ecef.py enhanced_settings.py extent_operations.py fast_coordinate_detector.py field2geom.py geohash.py geom2field.py geom2wkt.py georef.py input_validation.py latLonFunctions.py latLonTools.py latLonToolsProcessing.py lazy_loader.py maidenhead.py mapProviders.py mgrs.py mgrstogeom.py multizoom.py olc.py parser_service.py pluscodes.py plugin_cleanup.py plugin_enhancements.py provider.py run_all_tests.py settings.py showOnMapTool.py smart_parser.py text_preservation.py tomgrs.py ups.py util.py utm.py wkt2layers.py zoomToLatLon.py
 EXTRAS = metadata.txt icon.png LICENSE
 
 deploy:
