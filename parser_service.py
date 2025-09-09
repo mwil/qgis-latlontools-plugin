@@ -93,37 +93,46 @@ class CoordinateParserService:
         return cls._instance
     
     @classmethod
+    def _cleanup_parser_loader(cls, instance):
+        """Clean up parser loader with error handling"""
+        if hasattr(instance, '_parser_loader') and instance._parser_loader:
+            try:
+                instance._parser_loader.reset()
+                instance._parser_loader = None
+            except Exception as e:
+                cls._log_cleanup_warning(f"Failed to reset parser loader during cleanup: {e}")
+    
+    @classmethod
+    def _cleanup_references(cls, instance):
+        """Clean up object references"""
+        if hasattr(instance, '_optimized_parser'):
+            instance._optimized_parser = None
+            
+        if hasattr(instance, 'settings'):
+            instance.settings = None
+        if hasattr(instance, 'iface'):
+            instance.iface = None
+    
+    @classmethod
+    def _log_cleanup_warning(cls, message):
+        """Safely log cleanup warnings with fallback for shutdown scenarios"""
+        try:
+            QgsMessageLog.logMessage(f"Warning: {message}", "LatLonTools", Qgis.Warning)
+        except:
+            pass  # Even logging might fail during shutdown
+
+    @classmethod
     def reset_instance(cls):
         """Reset singleton instance and clean up all references to prevent shutdown hangs"""
         if cls._instance is not None:
             try:
-                # Clean up nested references in the instance before destroying it
-                if hasattr(cls._instance, '_parser_loader') and cls._instance._parser_loader:
-                    try:
-                        cls._instance._parser_loader.reset()  # Reset lazy loader
-                        cls._instance._parser_loader = None
-                    except Exception as e:
-                        # Log cleanup failures for debugging, but continue with reset
-                        try:
-                            QgsMessageLog.logMessage(f"Warning: Failed to reset parser loader during cleanup: {e}", "LatLonTools", Qgis.Warning)
-                        except:
-                            pass  # Even logging might fail during shutdown
-                
-                if hasattr(cls._instance, '_optimized_parser'):
-                    cls._instance._optimized_parser = None
-                    
-                # Clear QGIS object references
-                if hasattr(cls._instance, 'settings'):
-                    cls._instance.settings = None
-                if hasattr(cls._instance, 'iface'):
-                    cls._instance.iface = None
+                # Use helper methods to clean up components
+                cls._cleanup_parser_loader(cls._instance)
+                cls._cleanup_references(cls._instance)
                     
             except Exception as e:
                 # If cleanup fails, still proceed with instance reset
-                try:
-                    QgsMessageLog.logMessage(f"Warning: Exception during singleton cleanup: {e}", "LatLonTools", Qgis.Warning)
-                except:
-                    pass  # Even logging might fail during shutdown
+                cls._log_cleanup_warning(f"Exception during singleton cleanup: {e}")
         
         # Finally reset the singleton reference
         cls._instance = None

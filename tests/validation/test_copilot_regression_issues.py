@@ -60,6 +60,7 @@ class TestCopilotRegressionIssues(unittest.TestCase):
         Solution: Changed \d{1,3} to \d* and \d* to \d+ to allow leading decimals
         """
         pattern = self.patterns['decimal_degrees']
+        # Current regex being tested: r'^[+-]?\d*\.?\d+[\s,;]+[+-]?\d*\.?\d+\s*$'
         
         # Critical test cases from Copilot review
         critical_cases = [
@@ -118,9 +119,6 @@ class TestCopilotRegressionIssues(unittest.TestCase):
             lat_xy, lon_xy = y, x  # First number is lon, second is lat
         
         # CRITICAL VALIDATION: OrderYX should interpret "45.123, -122.456" as Lat=45.123, Lon=-122.456
-        print(f"Input: '{text}' → x={x}, y={y}")
-        print(f"OrderYX (Lat,Lon input): lat={lat_yx}, lon={lon_yx}")
-        print(f"OrderXY (Lon,Lat input): lat={lat_xy}, lon={lon_xy}")
         
         # OrderYX: Input format is "Lat, Lon" so 45.123=lat, -122.456=lon
         self.assertEqual(lat_yx, 45.123, "OrderYX: First number should be latitude")
@@ -150,8 +148,6 @@ class TestCopilotRegressionIssues(unittest.TestCase):
         self.assertEqual(lon_yx2, 56.78, "OrderYX: lon should be second number in Lat,Lon format")
         self.assertEqual(lat_xy2, 56.78, "OrderXY: lat should be second number in Lon,Lat format") 
         self.assertEqual(lon_xy2, 12.34, "OrderXY: lon should be first number in Lon,Lat format")
-        
-        print("✅ COORDINATE ASSIGNMENT LOGIC VALIDATION PASSED")
     
     def test_obviously_projected_pattern_specificity_fix(self):
         """
@@ -278,15 +274,6 @@ class TestCopilotRegressionIssues(unittest.TestCase):
 
 def run_copilot_regression_tests():
     """Run Copilot regression tests"""
-    print("🤖 COPILOT REGRESSION TESTS")
-    print("=" * 50)
-    print("Validating fixes for GitHub Copilot PR review issues:")
-    print("1. ✅ Decimal degrees regex leading decimals fix")
-    print("2. ✅ Coordinate assignment logic correction")  
-    print("3. ✅ Obviously projected pattern specificity")
-    print("4. ✅ Exception handling with proper logging")
-    print("")
-    
     # Create test suite
     loader = unittest.TestLoader()
     suite = loader.loadTestsFromTestCase(TestCopilotRegressionIssues)
@@ -295,16 +282,10 @@ def run_copilot_regression_tests():
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     
-    print(f"\n📊 COPILOT REGRESSION TEST SUMMARY:")
-    print(f"Tests run: {result.testsRun}")
-    print(f"Failures: {len(result.failures)}")
-    print(f"Errors: {len(result.errors)}")
-    
     if result.wasSuccessful():
-        print("🎉 ALL COPILOT REGRESSION TESTS PASSED!")
-        print("✅ No regressions detected - fixes are working correctly")
+        return True
     else:
-        print("⚠️ REGRESSION DETECTED!")
+        # Log failures and errors to help with debugging
         for failure in result.failures:
             print(f"FAILURE: {failure[0]} - {failure[1]}")
         for error in result.errors:

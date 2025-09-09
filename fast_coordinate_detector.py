@@ -24,6 +24,15 @@ except ImportError:
     Qgis = MockQgis()
     QGIS_AVAILABLE = False
 
+# Handle settings and util imports for performance optimization
+try:
+    from .settings import CoordOrder
+    from .util import epsg4326, parseDMSString
+except ImportError:
+    # Fallback for standalone testing
+    from settings import CoordOrder
+    from util import epsg4326, parseDMSString
+
 # Pre-compiled regex patterns for maximum performance
 COORDINATE_PATTERNS = {
     # Most common formats first (performance optimization)
@@ -50,7 +59,26 @@ COORDINATE_PATTERNS = {
 
 # Fast validation patterns to avoid expensive parsing
 INVALID_PATTERNS = {
-    'obviously_projected': re.compile(r'^\s*[+-]?(?:\d{4,})\.?\d*[\s,;]+[+-]?(?:\d{5,})\.?\d*\s*$|^\s*[+-]?(?:\d{5,})\.?\d*[\s,;]+[+-]?(?:\d{4,})\.?\d*\s*$'),  # UTM-like: 4+ and 5+ digits in either order
+    'obviously_projected': re.compile(
+        r'''
+        ^\s*                # Optional leading whitespace
+        [+-]?               # Optional sign
+        (?:\d{4,})\.?\d*    # 4+ digits (easting or northing), optional decimal
+        [\s,;]+             # Separator(s)
+        [+-]?               # Optional sign
+        (?:\d{5,})\.?\d*    # 5+ digits (northing or easting), optional decimal
+        \s*$                # Optional trailing whitespace
+        |                   # OR: reverse order
+        ^\s*
+        [+-]?
+        (?:\d{5,})\.?\d*
+        [\s,;]+
+        [+-]?
+        (?:\d{4,})\.?\d*
+        \s*$
+        ''',
+        re.VERBOSE
+    ),  # UTM-like: 4+ and 5+ digits in either order
     'too_many_digits': re.compile(r'\d{8,}'),  # Very long numbers
     'invalid_chars': re.compile(r'[^0-9a-zA-Z\s\.,;:+\-°′″\'\"NSEW\(\)\{\}]'),  # Invalid characters
 }
@@ -223,10 +251,6 @@ class OptimizedCoordinateParser:
             x, y = float(numbers[0]), float(numbers[1])
             
             # Apply coordinate order preference
-            try:
-                from .settings import CoordOrder
-            except ImportError:
-                from settings import CoordOrder
             if self.smart_parser.settings.zoomToCoordOrder == CoordOrder.OrderYX:
                 lat, lon = x, y  # OrderYX: Input format is "Lat, Lon" so x=lat, y=lon
             else:
@@ -240,10 +264,6 @@ class OptimizedCoordinateParser:
                 else:
                     return None
             
-            try:
-                from .util import epsg4326
-            except ImportError:
-                from util import epsg4326
             return (lat, lon, None, epsg4326)
             
         except (ValueError, IndexError):
@@ -254,10 +274,6 @@ class OptimizedCoordinateParser:
         Optimized DMS parsing using existing parseDMSString function
         """
         try:
-            try:
-                from .util import parseDMSString, epsg4326
-            except ImportError:
-                from util import parseDMSString, epsg4326
             lat, lon = parseDMSString(text, self.smart_parser.settings.zoomToCoordOrder)
             return (lat, lon, None, epsg4326)
         except:
