@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.13.0] - 2025-09-26
+
+### Fixed
+- **Emergency Shutdown System**: Implemented comprehensive emergency cleanup to prevent QGIS hanging during plugin unload
+- **Canvas Resource Management**: Added aggressive cleanup of QgsRubberBand objects and markers that could cause shutdown hanging
+- **Signal Management**: Fixed signal disconnection to specify exact slots, preventing interference with other plugins
+- **Singleton Cleanup**: Enhanced CoordinateParserService reset with fallback mechanisms for shutdown scenarios
+- **Widget Cleanup**: Improved dock widget cleanup with priority-based emergency strategies
+- **Processing Provider**: Added emergency removal of processing providers that could block shutdown
+
 ## [3.12.0] - 2025-01-09
 
 ### Added
