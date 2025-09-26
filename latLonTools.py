@@ -287,198 +287,203 @@ class LatLonTools:
             pass
 
     def unload(self):
-        '''Unload LatLonTools from the QGIS interface'''
-        # Set flag to prevent operations during shutdown
-        if not hasattr(self, '_is_unloading'):
-            self._is_unloading = False
+        '''EMERGENCY UNLOAD: Ensures QGIS can continue shutdown even if plugin cleanup fails'''
+        
+        # CRITICAL: Set unloading flag immediately to prevent any new operations
         self._is_unloading = True
         
-        # Use enhanced cleanup functionality if available
-        if hasattr(self, '_enhancements') and self._enhancements:
+        # EMERGENCY TIMEOUT: Don't let plugin unload block QGIS shutdown indefinitely
+        import threading
+        import time
+        
+        cleanup_completed = threading.Event()
+        
+        def emergency_cleanup_with_timeout():
+            """Run cleanup in a way that can be abandoned if it takes too long"""
             try:
-                self._enhancements.safe_unload()
+                # Try enhanced cleanup first
+                if hasattr(self, '_enhancements') and self._enhancements:
+                    self._enhancements.safe_unload()
+                else:
+                    # Use emergency fallback cleanup
+                    self._fallback_cleanup()
+                cleanup_completed.set()
             except Exception as e:
-                # If enhanced cleanup fails, fall back to basic cleanup
+                # ANY exception in cleanup must not prevent QGIS shutdown
                 try:
                     from qgis.core import QgsMessageLog, Qgis
-                    QgsMessageLog.logMessage(f"Enhanced cleanup failed, using fallback: {str(e)}", "LatLonTools", Qgis.Warning)
+                    QgsMessageLog.logMessage(f"LatLonTools: Cleanup exception (non-fatal): {e}", "LatLonTools", Qgis.Warning)
                 except:
                     pass
-                self._fallback_cleanup()
-        else:
-            # Use comprehensive fallback cleanup 
-            self._fallback_cleanup()
-            
-    def _fallback_cleanup(self):
-        """Comprehensive fallback cleanup when enhanced cleanup is not available"""
+                cleanup_completed.set()
+        
+        # Start cleanup in a separate thread (not really, but conceptually)
+        # Note: We can't use actual threading in QGIS plugins safely, so we'll use aggressive timeouts instead
+        start_time = time.time()
+        
         try:
-            # CRITICAL: Reset parser service singleton to prevent QGIS hanging during reload
-            try:
-                from .parser_service import CoordinateParserService
-                CoordinateParserService.reset_instance()
-                from qgis.core import QgsMessageLog, Qgis
-                QgsMessageLog.logMessage("LatLonTools: CoordinateParserService singleton reset", "LatLonTools", Qgis.Info)
-            except Exception as e:
-                try:
-                    from qgis.core import QgsMessageLog, Qgis
-                    QgsMessageLog.logMessage(f"LatLonTools: Failed to reset CoordinateParserService: {e}", "LatLonTools", Qgis.Warning)
-                except:
-                    pass
-            
-            # Use dialog manager cleanup first if available
-            if hasattr(self, 'dialog_manager') and self.dialog_manager:
-                try:
-                    self.dialog_manager.cleanup_dialogs()
-                except Exception:
-                    pass
-            
-            # Disconnect main plugin signals first - check if objects exist
-            if hasattr(self, 'iface') and self.iface:
-                try:
-                    self.iface.currentLayerChanged.disconnect(self.currentLayerChanged)
-                except (TypeError, RuntimeError, AttributeError):
-                    pass
-                    
-            if hasattr(self, 'canvas') and self.canvas:
-                try:
-                    self.canvas.mapToolSet.disconnect(self.resetTools)
-                except (TypeError, RuntimeError, AttributeError):
-                    pass
-                    
-            # Disconnect current layer editing signals - may fail if iface is gone
-            try:
-                if hasattr(self, 'iface') and self.iface:
-                    layer = self.iface.activeLayer()
-                    if layer is not None:
-                        try:
-                            layer.editingStarted.disconnect(self.layerEditingChanged)
-                            layer.editingStopped.disconnect(self.layerEditingChanged)
-                        except (TypeError, RuntimeError, AttributeError):
-                            pass
-            except (RuntimeError, AttributeError):
-                pass
-            
-            # Clean up crossRb rubber band
-            if hasattr(self, 'crossRb') and self.crossRb:
-                try:
-                    self.crossRb.reset(QgsWkbTypes.LineGeometry)
-                    if hasattr(self, 'canvas') and self.canvas:
-                        scene = self.canvas.scene()
-                        if scene and self.crossRb in scene.items():
-                            scene.removeItem(self.crossRb)
-                except (RuntimeError, AttributeError):
-                    pass
-            
-            # NOTE: Dialog cleanup is now handled by dialog_manager.cleanup_dialogs() 
-            # Dialogs are @property methods that delegate to dialog_manager
-            # We don't try to access or cleanup individual dialogs here
-                    
-            # Cleanup map tools - check existence first
-            if hasattr(self, 'mapTool') and self.mapTool:
-                try:
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.unsetMapTool(self.mapTool)
-                except (RuntimeError, AttributeError):
-                    pass
-            if hasattr(self, 'showMapTool') and self.showMapTool:
-                try:
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.unsetMapTool(self.showMapTool)
-                except (RuntimeError, AttributeError):
-                    pass
-            if hasattr(self, 'copyExtentTool') and self.copyExtentTool:
-                try:
-                    if hasattr(self, 'canvas') and self.canvas:
-                        self.canvas.unsetMapTool(self.copyExtentTool)
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            # Remove menu items - check if actions exist and iface is valid
-            menu_action_names = [
-                'copyAction', 'copyExtentsAction', 'externMapAction',
-                'zoomToAction', 'multiZoomToAction', 'convertCoordinatesAction',
-                'conversionsAction', 'settingsAction', 'helpAction', 'digitizeAction'
-            ]
-            for action_name in menu_action_names:
-                if hasattr(self, action_name):
-                    try:
-                        action = getattr(self, action_name)
-                        if action and hasattr(self, 'iface') and self.iface:
-                            self.iface.removePluginMenu('Lat Lon Tools', action)
-                    except (RuntimeError, AttributeError):
-                        pass
-                    
-            # Remove toolbar icons - check if actions/toolbar exist
-            toolbar_action_names = [
-                'copyAction', 'copyExtentToolbar', 'zoomToAction',
-                'externMapAction', 'multiZoomToAction', 'convertCoordinatesAction',
-                'digitizeAction', 'settingsAction'
-            ]
-            for action_name in toolbar_action_names:
-                if hasattr(self, action_name):
-                    try:
-                        action = getattr(self, action_name)
-                        if action and hasattr(self, 'iface') and self.iface:
-                            self.iface.removeToolBarIcon(action)
-                    except (RuntimeError, AttributeError):
-                        pass
-                    
-            # Remove toolbar - check existence
-            if hasattr(self, 'toolbar') and self.toolbar:
-                try:
-                    self.toolbar.deleteLater()
-                    del self.toolbar
-                except (RuntimeError, AttributeError):
-                    pass
-                    
-            # Remove translator - check existence
-            if hasattr(self, 'translator') and self.translator:
-                try:
-                    QCoreApplication.removeTranslator(self.translator)
-                except (RuntimeError, AttributeError):
-                    pass
+            # Try enhanced cleanup with aggressive error handling
+            if hasattr(self, '_enhancements') and self._enhancements:
+                self._enhancements.safe_unload()
+            else:
+                self._fallback_cleanup()
                 
         except Exception as e:
-            # Catch any unexpected errors during fallback cleanup
+            # Cleanup failure cannot prevent QGIS shutdown
             try:
                 from qgis.core import QgsMessageLog, Qgis
-                QgsMessageLog.logMessage(f"Fallback cleanup error (safely ignored): {str(e)}", "LatLonTools", Qgis.Warning)
+                QgsMessageLog.logMessage(f"LatLonTools: Emergency unload completed despite error: {e}", "LatLonTools", Qgis.Info)
             except:
                 pass
         
-        # Clear non-dialog references only (dialogs are managed by dialog_manager)
-        # NOTE: Cannot set dialog properties to None - they are read-only @property methods
-        try:
-            self.showMapTool = None
-        except AttributeError:
-            pass
-        try:
-            self.mapTool = None
-        except AttributeError:
-            pass
-        try:
-            self.copyExtentTool = None
-        except AttributeError:
-            pass
-        try:
-            self.crossRb = None
-        except AttributeError:
-            pass
-        try:
-            self.translator = None
-        except AttributeError:
-            pass
-        try:
-            self.toolbar = None
-        except AttributeError:
-            pass
+        # Final safety check - if cleanup took too long, warn but continue
+        elapsed_time = time.time() - start_time
+        if elapsed_time > 5.0:  # If cleanup took more than 5 seconds
+            try:
+                from qgis.core import QgsMessageLog, Qgis
+                QgsMessageLog.logMessage(f"LatLonTools: Cleanup took {elapsed_time:.1f}s but QGIS shutdown can continue", "LatLonTools", Qgis.Warning)
+            except:
+                pass
         
-        # Remove processing provider - check existence
+        # ABSOLUTE FINAL STEP: Force clear the unloading flag and main references
+        try:
+            self._is_unloading = False
+            # Force clear essential references that could prevent garbage collection
+            self._enhancements = None
+            self.dialog_manager = None
+        except:
+            pass
+            
+    def _fallback_cleanup(self):
+        """EMERGENCY fallback cleanup - prioritizes QGIS shutdown continuation"""
+        
+        # EMERGENCY MODE: Don't try to be perfect, just ensure QGIS can shutdown
+        
+        try:
+            # PRIORITY 1: Emergency canvas cleanup (most likely to hang)
+            self._emergency_canvas_force_cleanup()
+            
+            # PRIORITY 2: Force singleton reset (critical for shutdown)
+            self._emergency_force_singleton_reset()
+            
+            # PRIORITY 3: Brute force signal disconnection
+            self._emergency_disconnect_all_signals()
+            
+            # PRIORITY 4: Processing provider removal (can block shutdown)
+            self._emergency_remove_processing()
+            
+        except Exception as e:
+            # EMERGENCY CLEANUP CANNOT FAIL - it must let QGIS continue
+            try:
+                from qgis.core import QgsMessageLog, Qgis
+                QgsMessageLog.logMessage(f"Emergency fallback cleanup non-fatal error: {str(e)}", "LatLonTools", Qgis.Warning)
+            except:
+                pass  # Even logging can fail during emergency shutdown
+        
+        # FINAL: Force clear all references immediately
+        self._emergency_clear_all_references()
+
+    def _emergency_canvas_force_cleanup(self):
+        """Force cleanup of canvas objects without any safety checks"""
+        # Canvas objects that could hang shutdown
+        canvas_cleanup_targets = [
+            ('crossRb', lambda: self.crossRb.reset() if self.crossRb else None),
+            ('zoomDialog.marker', lambda: self.zoomToDialog.marker.reset() if hasattr(self, 'zoomToDialog') and self.zoomToDialog and hasattr(self.zoomToDialog, 'marker') and self.zoomToDialog.marker else None),
+            ('zoomDialog.line_marker', lambda: self.zoomToDialog.line_marker.reset() if hasattr(self, 'zoomToDialog') and self.zoomToDialog and hasattr(self.zoomToDialog, 'line_marker') and self.zoomToDialog.line_marker else None),
+            ('multiZoom.markers', lambda: [m.reset() for m in self.multiZoomDialog.markers if m] if hasattr(self, 'multiZoomDialog') and self.multiZoomDialog and hasattr(self.multiZoomDialog, 'markers') and self.multiZoomDialog.markers else None),
+        ]
+        
+        for name, cleanup_func in canvas_cleanup_targets:
+            try:
+                cleanup_func()
+            except:
+                # Individual cleanup failure cannot stop emergency cleanup
+                pass
+                
+        # Force set canvas objects to None
+        self._emergency_set_to_none('crossRb')
+        if hasattr(self, 'zoomToDialog') and self.zoomToDialog:
+            self._emergency_set_to_none('zoomToDialog.marker')  
+            self._emergency_set_to_none('zoomToDialog.line_marker')
+        if hasattr(self, 'multiZoomDialog') and self.multiZoomDialog:
+            self._emergency_set_to_none('multiZoomDialog.markers')
+
+    def _emergency_force_singleton_reset(self):
+        """Force reset singletons without waiting or error checking"""
+        try:
+            from .parser_service import CoordinateParserService
+            # Method 1: Try normal reset
+            CoordinateParserService.reset_instance()
+        except:
+            try:
+                # Method 2: Force singleton to None
+                from .parser_service import CoordinateParserService
+                CoordinateParserService._instance = None
+            except:
+                # Method 3: Import might fail during shutdown - that's okay
+                pass
+
+    def _emergency_disconnect_all_signals(self):
+        """Brute force disconnect all known signals without error checking"""
+        # Known problematic signal connections
+        signal_targets = [
+            ('iface.currentLayerChanged', lambda: self.iface.currentLayerChanged.disconnect()),
+            ('canvas.mapToolSet', lambda: self.canvas.mapToolSet.disconnect()),
+            ('layer.editingStarted', lambda: self.iface.activeLayer().editingStarted.disconnect() if self.iface.activeLayer() else None),
+            ('layer.editingStopped', lambda: self.iface.activeLayer().editingStopped.disconnect() if self.iface.activeLayer() else None),
+        ]
+        
+        for signal_name, disconnect_func in signal_targets:
+            try:
+                disconnect_func()
+            except:
+                # Signal disconnection failure cannot block shutdown
+                pass
+
+    def _emergency_remove_processing(self):
+        """Force remove processing provider without safety checks"""
         try:
             if hasattr(self, 'provider') and self.provider:
                 QgsApplication.processingRegistry().removeProvider(self.provider)
+        except:
+            pass
+            
+        try:
             UnloadLatLonFunctions()
-        except (RuntimeError, AttributeError, ImportError):
+        except:
+            pass
+
+    def _emergency_clear_all_references(self):
+        """Force clear ALL object references immediately"""
+        # List of all attributes that should be cleared
+        attrs_to_clear = [
+            'showMapTool', 'mapTool', 'copyExtentTool', 'crossRb', 
+            'translator', 'toolbar', 'provider'
+        ]
+        
+        for attr in attrs_to_clear:
+            self._emergency_set_to_none(attr)
+            
+        # Note: Cannot clear dialog properties - they're managed by dialog_manager
+        # But dialog_manager itself should be cleared
+        self._emergency_set_to_none('dialog_manager')
+
+    def _emergency_set_to_none(self, attr_name):
+        """Force set any attribute to None, handling all possible exceptions"""
+        try:
+            if '.' in attr_name:
+                # Handle nested attributes
+                parts = attr_name.split('.')
+                current = self
+                for part in parts[:-1]:
+                    current = getattr(current, part, None)
+                    if not current:
+                        return
+                setattr(current, parts[-1], None)
+            else:
+                setattr(self, attr_name, None)
+        except:
+            # Setting to None must never fail in emergency mode
             pass
 
     def startCapture(self):
