@@ -292,33 +292,9 @@ class LatLonTools:
         # CRITICAL: Set unloading flag immediately to prevent any new operations
         self._is_unloading = True
         
-        # EMERGENCY TIMEOUT: Don't let plugin unload block QGIS shutdown indefinitely
-        import threading
+        # EMERGENCY TIMING: Track cleanup time but don't block QGIS shutdown
         import time
-        
-        cleanup_completed = threading.Event()
-        
-        def emergency_cleanup_with_timeout():
-            """Run cleanup in a way that can be abandoned if it takes too long"""
-            try:
-                # Try enhanced cleanup first
-                if hasattr(self, '_enhancements') and self._enhancements:
-                    self._enhancements.safe_unload()
-                else:
-                    # Use emergency fallback cleanup
-                    self._fallback_cleanup()
-                cleanup_completed.set()
-            except Exception as e:
-                # ANY exception in cleanup must not prevent QGIS shutdown
-                try:
-                    from qgis.core import QgsMessageLog, Qgis
-                    QgsMessageLog.logMessage(f"LatLonTools: Cleanup exception (non-fatal): {e}", "LatLonTools", Qgis.Warning)
-                except:
-                    pass
-                cleanup_completed.set()
-        
-        # Start cleanup in a separate thread (not really, but conceptually)
-        # Note: We can't use actual threading in QGIS plugins safely, so we'll use aggressive timeouts instead
+
         start_time = time.time()
         
         try:

@@ -105,22 +105,18 @@ class SafePluginCleanup:
                 pass
     
     def _emergency_singleton_reset(self):
-        """PRIORITY 2: Force reset singleton with timeout protection"""
+        """PRIORITY 2: Force reset singleton with aggressive error handling"""
         try:
-            # Import and reset with timeout-like behavior
-            import threading
-            import time
-            
-            def reset_with_timeout():
+            def try_singleton_reset():
                 try:
                     from .parser_service import CoordinateParserService
                     CoordinateParserService.reset_instance()
                     return True
                 except:
                     return False
-                    
-            # Don't actually implement timeout (complex) - just aggressive error handling
-            success = reset_with_timeout()
+
+            # Try normal reset first, then force reset if needed
+            success = try_singleton_reset()
             if not success:
                 # Force singleton to None even if reset fails
                 try:
@@ -128,7 +124,7 @@ class SafePluginCleanup:
                     CoordinateParserService._instance = None
                 except:
                     pass
-                    
+
         except Exception:
             # Singleton reset must never block shutdown
             pass
