@@ -131,31 +131,53 @@ class SafePluginCleanup:
     
     def _emergency_signal_disconnection(self):
         """PRIORITY 3: Aggressively disconnect all signals without waiting"""
-        # List of known signal connections that could hang during shutdown
-        signal_disconnections = [
-            # Main plugin signals
-            (lambda: self.plugin.iface.currentLayerChanged.disconnect(self.plugin.currentLayerChanged), 'iface.currentLayerChanged'),
-            (lambda: self.plugin.canvas.mapToolSet.disconnect(self.plugin.resetTools), 'canvas.mapToolSet'),
-            
-            # Dialog signals
-            (lambda: self.plugin.zoomToDialog.canvas.destinationCrsChanged.disconnect(self.plugin.zoomToDialog.crsChanged), 'zoomDialog.crsChanged'),
-            (lambda: self.plugin.multiZoomDialog.canvas.destinationCrsChanged.disconnect(self.plugin.multiZoomDialog.crsChanged), 'multiZoom.crsChanged'),
-        ]
-        
-        # Attempt all disconnections but don't block on any
-        for disconnect_func, signal_name in signal_disconnections:
-            try:
-                disconnect_func()
-            except:
-                # Failed disconnection cannot block emergency cleanup
-                pass
+        # Disconnect main plugin signals
+        self._disconnect_main_plugin_signals()
+
+        # Disconnect dialog signals
+        self._disconnect_dialog_signals()
+
+    def _disconnect_main_plugin_signals(self):
+        """Disconnect main plugin signals safely"""
+        try:
+            if hasattr(self.plugin, 'iface') and self.plugin.iface:
+                self.plugin.iface.currentLayerChanged.disconnect(self.plugin.currentLayerChanged)
+        except:
+            pass
+
+        try:
+            if hasattr(self.plugin, 'canvas') and self.plugin.canvas:
+                self.plugin.canvas.mapToolSet.disconnect(self.plugin.resetTools)
+        except:
+            pass
+
+    def _disconnect_dialog_signals(self):
+        """Disconnect dialog canvas signals safely"""
+        try:
+            if hasattr(self.plugin, 'zoomToDialog') and self.plugin.zoomToDialog:
+                self.plugin.zoomToDialog.canvas.destinationCrsChanged.disconnect(self.plugin.zoomToDialog.crsChanged)
+        except:
+            pass
+
+        try:
+            if hasattr(self.plugin, 'multiZoomDialog') and self.plugin.multiZoomDialog:
+                self.plugin.multiZoomDialog.canvas.destinationCrsChanged.disconnect(self.plugin.multiZoomDialog.crsChanged)
+        except:
+            pass
                 
         # Force disconnect active layer signals
         try:
             layer = self.plugin.iface.activeLayer()
             if layer:
-                layer.editingStarted.disconnect()
-                layer.editingStopped.disconnect()
+                # Disconnect only this plugin's slots
+                try:
+                    layer.editingStarted.disconnect(self.plugin.layerEditingChanged)
+                except:
+                    pass
+                try:
+                    layer.editingStopped.disconnect(self.plugin.layerEditingChanged)
+                except:
+                    pass
         except:
             pass
     

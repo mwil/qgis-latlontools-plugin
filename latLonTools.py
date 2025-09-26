@@ -401,20 +401,34 @@ class LatLonTools:
 
     def _emergency_disconnect_all_signals(self):
         """Brute force disconnect all known signals without error checking"""
-        # Known problematic signal connections
-        signal_targets = [
-            ('iface.currentLayerChanged', lambda: self.iface.currentLayerChanged.disconnect()),
-            ('canvas.mapToolSet', lambda: self.canvas.mapToolSet.disconnect()),
-            ('layer.editingStarted', lambda: self.iface.activeLayer().editingStarted.disconnect() if self.iface.activeLayer() else None),
-            ('layer.editingStopped', lambda: self.iface.activeLayer().editingStopped.disconnect() if self.iface.activeLayer() else None),
-        ]
-        
-        for signal_name, disconnect_func in signal_targets:
-            try:
-                disconnect_func()
-            except:
-                # Signal disconnection failure cannot block shutdown
-                pass
+        # Disconnect main plugin signals - specify exact slots to avoid affecting other plugins
+        try:
+            if hasattr(self, 'iface') and self.iface:
+                self.iface.currentLayerChanged.disconnect(self.currentLayerChanged)
+        except:
+            pass
+
+        try:
+            if hasattr(self, 'canvas') and self.canvas:
+                self.canvas.mapToolSet.disconnect(self.resetTools)
+        except:
+            pass
+
+        # Store active layer once to avoid race conditions
+        try:
+            if hasattr(self, 'iface') and self.iface:
+                active_layer = self.iface.activeLayer()
+                if active_layer:
+                    try:
+                        active_layer.editingStarted.disconnect(self.layerEditingChanged)
+                    except:
+                        pass
+                    try:
+                        active_layer.editingStopped.disconnect(self.layerEditingChanged)
+                    except:
+                        pass
+        except:
+            pass
 
     def _emergency_remove_processing(self):
         """Force remove processing provider without safety checks"""
