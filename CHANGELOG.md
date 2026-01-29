@@ -9,6 +9,20 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+-
+
+### Fixed
+
+-
+
+### Changed
+
+-
+
+## [3.14.1] - 2026-01-29
+
 ### Fixed
 
 - **Noise Character Sanitization**: Added support for parsing coordinates from
