@@ -9,6 +9,27 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- **Noise Character Sanitization**: Added support for parsing coordinates from
+  markdown tables by sanitizing pipe (`|`) separators and other noise characters
+- **Lazy Loader Import Fixes**: Fixed import mechanism to use
+  `importlib.import_module()` for compatibility with QGIS Python environment
+  (older Python versions)
+- **ECEF Dependency Removed**: Replaced pyproj hard dependency with QGIS
+  built-in coordinate transformation (EPSG:4978/4979)
+- **H3 Optional Dependency**: Added proper error handling for missing H3 library
+  in legacy fallback functions
+- **QGIS Log Level Fixes**: Fixed `Qgis.Debug` references (doesn't exist in QGIS
+  API) to use `Qgis.Info` instead
+- **Release Workflow**: Updated branch protection bypass to include Maintain
+  role for GitHub Actions
+
+### Changed
+
+- **Makefile**: Fixed Linux OS detection for plugin deployment path
+- **Test Coverage**: Added end-to-end tests for legacy grid coordinate formats
+
 ## [3.14.0] - 2026-01-29
 
 ### Added
