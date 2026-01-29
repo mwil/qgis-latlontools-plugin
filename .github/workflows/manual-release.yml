@@ -142,11 +142,13 @@ jobs:
         draft: false
         prerelease: ${{ github.event.inputs.prerelease }}
     
-    - name: Commit updated files
+    - name: Commit updated files (DISABLED - PR workflow instead)
       run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        git add metadata.txt CHANGELOG.md
-        git commit -m "chore: Release v${{ github.event.inputs.version }} - update metadata and changelog"
-        git push origin main
+        echo "NOTE: Commit step disabled - version/changelog updates should be done via PR"
+        echo "The manual release workflow now only creates the GitHub Release without committing back to main"
+        echo ""
+        echo "Expected workflow:"
+        echo "1. Create PR with code changes + version/changelog updates"
+        echo "2. Merge PR"
+        echo "3. Create tag (triggers automatic release) OR use this manual release workflow"
+        echo "4. Workflow creates GitHub Release without additional commits"

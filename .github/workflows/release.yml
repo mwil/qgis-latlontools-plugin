@@ -133,16 +133,17 @@ jobs:
         draft: false
         prerelease: false
     
-    - name: Commit updated files
+    - name: Commit updated files (DISABLED - PR workflow instead)
       run: |
-        # Commit the updated metadata.txt and CHANGELOG.md
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        git add metadata.txt CHANGELOG.md
-        git commit -m "chore: Release v${{ steps.version.outputs.version }} - update metadata and changelog" || exit 0
-        git push origin HEAD:main
-    
+        echo "NOTE: Commit step disabled - version/changelog updates should be done via PR"
+        echo "The release workflow now only creates the GitHub Release without committing back to main"
+        echo ""
+        echo "Expected workflow:"
+        echo "1. Create PR with code changes + version/changelog updates"
+        echo "2. Merge PR"
+        echo "3. Create tag (triggers this workflow)"
+        echo "4. Workflow creates GitHub Release without additional commits"
+
     - name: Create summary
       run: |
         echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
