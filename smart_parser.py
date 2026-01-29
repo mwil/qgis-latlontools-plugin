@@ -349,8 +349,8 @@ class MgrsParserStrategy(CoordinateParserStrategy):
         # MGRS format: Zone (1-2 digits) + Grid letter (A-Z, excluding I, O) + grid letters/digits
         # Examples: 4QFJ12345678, 4Q FJ 12345 67890
         text_clean = re.sub(r"\s+", "", text.upper())
-        # Pattern: 1-2 digit zone + letter + 2-3 grid letters + even number of digits
-        mgrs_pattern = r"^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2,}\d{2,}$"
+        # Pattern: 1-2 digit zone + letter + exactly 2 grid letters + even number of digits
+        mgrs_pattern = r"^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}\d{2,}$"
         return bool(re.match(mgrs_pattern, text_clean))
 
     def parse(self, text: str) -> tuple:
@@ -803,7 +803,7 @@ class SmartCoordinateParser:
 
         # GeoJSON: starts with '{' and has JSON structure
         if text.strip().startswith("{") and (
-            '"type"' in text and '"coordinates"' in text
+            ('"type"' in text and '"coordinates"' in text) or '"Point"' in text
         ):
             return "GeoJSON"
 
@@ -819,12 +819,12 @@ class SmartCoordinateParser:
                 before_plus = plus_code_parts[0]
                 after_plus = plus_code_parts[1]
                 if (
-                    all(c in "23456789CFGHJMPQRVWX" for c in before_plus)
+                    before_plus
+                    and after_plus  # Ensure non-empty
+                    and all(c in "23456789CFGHJMPQRVWX" for c in before_plus)
                     and len(before_plus) >= 2
                     and len(before_plus) <= 8
-                    and all(
-                        c in "23456789CFGHJMPQRVWX" for c in after_plus if c.isalpha()
-                    )
+                    and all(c in "23456789CFGHJMPQRVWX" for c in after_plus)
                 ):
                     return "PlusCodes"
 
@@ -866,7 +866,7 @@ class SmartCoordinateParser:
             return "WKT"
 
         # MGRS: zone + grid pattern
-        if bool(re.match(r"^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2,}\d{2,}$", text_clean)):
+        if bool(re.match(r"^\d{1,2}[C-HJ-NP-X][A-HJ-NP-Z]{2}\d{2,}$", text_clean)):
             return "MGRS"
 
         # UTM: zone + hemisphere + large numbers
@@ -924,7 +924,7 @@ class SmartCoordinateParser:
         """
         if not text or not isinstance(text, str):
             QgsMessageLog.logMessage(
-                f"SmartParser.parse: REJECTED - Invalid input type or empty",
+                "SmartParser.parse: REJECTED - Invalid input type or empty",
                 "LatLonTools",
                 Qgis.Warning,
             )
@@ -1010,9 +1010,9 @@ class SmartCoordinateParser:
                         Qgis.Info,
                     )
 
-            # Try candidates, max 2 parse attempts
+            # Try candidates, no limit - try all identified by can_parse()
             parse_attempts = 0
-            for strategy in candidates[:2]:  # Limit to first 2 candidates
+            for strategy in candidates:  # Try all candidates identified by can_parse()
                 QgsMessageLog.logMessage(
                     f"SmartParser.parse: Trying {strategy.__class__.__name__}",
                     "LatLonTools",
