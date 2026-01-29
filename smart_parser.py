@@ -772,24 +772,30 @@ class SmartCoordinateParser:
                     QgsMessageLog.logMessage(
                         f"SmartParser.preprocess: Rejected non-ASCII character '{char}' (ord={ord(char)})",
                         "LatLonTools",
-                        Qgis.Debug,  # Debug level for less verbosity
+                        Qgis.Info,  # Debug level - use Info since Qgis.Debug doesn't exist
                     )
                 else:
                     QgsMessageLog.logMessage(
                         f"SmartParser.preprocess: Rejected input with invalid character '{char}' (ord={ord(char)})",
                         "LatLonTools",
-                        Qgis.Debug,  # Debug level for less verbosity
+                        Qgis.Info,  # Debug level - use Info since Qgis.Debug doesn't exist
                     )
                 return None
 
+        # Sanitize noise characters from markdown tables, copy-paste, etc.
+        # Replace pipes, tabs, carriage returns with spaces before processing
+        import re as _re
+
+        text = _re.sub(r"[|\t\r]+", " ", text)
+
         # Normalize whitespace: replace all whitespace sequences with single space
         # and strip leading/trailing whitespace
-        text_clean = re.sub(r"\s+", " ", text.strip())
+        text_clean = _re.sub(r"\s+", " ", text.strip())
 
         QgsMessageLog.logMessage(
             f"SmartParser.preprocess: Cleaned input from '{text}' to '{text_clean}'",
             "LatLonTools",
-            Qgis.Debug,  # Debug level for less verbosity
+            Qgis.Info,  # Debug level - use Info since Qgis.Debug doesn't exist
         )
 
         return text_clean

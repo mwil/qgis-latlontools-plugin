@@ -5,7 +5,11 @@ UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
     PLUGINS = "$(HOME)"/Library/Application\ Support/QGIS/QGIS3/profiles/default/python/plugins/$(PLUGINNAME)
     PYTHON = python3
+else ifeq ($(UNAME_S),Linux)
+    PLUGINS = "$(HOME)"/.local/share/QGIS/QGIS3/profiles/default/python/plugins/$(PLUGINNAME)
+    PYTHON = python3
 else
+    # Windows (or other)
     PLUGINS = "$(HOME)"/AppData/Roaming/QGIS/QGIS3/profiles/default/python/plugins/$(PLUGINNAME)
     PYTHON = python
 endif
