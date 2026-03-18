@@ -15,11 +15,19 @@ and this project adheres to
 
 ### Fixed
 
--
+- **Projected CRS Zoom**: Restored Project CRS and Custom CRS coordinate parsing
+  in the Zoom dialog. These modes were broken in v3.14.2 when the ultra-fast
+  path was unconditionally treating all inputs as WGS84 decimal degrees.
+- **Test Fix**: Updated `test_logging_integration` to patch `debug_logging`
+  instead of `parser_service.QgsMessageLog`, matching the new logging
+  architecture.
 
 ### Changed
 
--
+- **Import Cleanup**: Removed unused imports from zoomToLatLon.py (QgsJsonUtils,
+  QgsPointXY, QgsGeometry, QgsRectangle, utm, ups, mgrs, olc, geohash,
+  maidenhead, georef, h3, parseDMSString) and removed the BUILD timestamp
+  marker.
 
 ## [3.14.2] - 2026-03-18
 

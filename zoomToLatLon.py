@@ -11,8 +11,6 @@
  ***************************************************************************/
 """
 
-# BUILD: 2026-03-17-08:30-ULTRAFAST
-
 import os
 import re
 import traceback
@@ -23,37 +21,19 @@ from qgis.PyQt.QtWidgets import QDockWidget, QApplication, QMenu
 from qgis.gui import QgsRubberBand, QgsProjectionSelectionDialog
 from qgis.core import (
     Qgis,
-    QgsJsonUtils,
     QgsWkbTypes,
-    QgsPointXY,
-    QgsGeometry,
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsProject,
-    QgsRectangle,
     QgsMessageLog,
 )
-from .util import epsg4326, parseDMSString, tr
+from .util import epsg4326, tr
 from .settings import settings, CoordOrder, H3_INSTALLED
-from .utm import isUtm, utm2Point
-from .ups import isUps, ups2Point
-from . import mgrs
-from . import olc
-from . import geohash
-from .maidenhead import maidenGrid
-from . import georef
 from .parser_service import parse_coordinate_with_service
-
-if H3_INSTALLED:
-    import h3
 
 # Pre-compile regex patterns for performance
 COMPILED_REGEX = {
-    "whitespace": re.compile(r"\s+"),
-    "point_search": re.compile(r"POINT\("),
-    "point_extract": re.compile(r"POINT\(\s*([+-]?\d*\.?\d*)\s+([+-]?\d*\.?\d*)"),
     "coord_split": re.compile(r"[\s,;:]+"),
-    "mgrs_clean": re.compile(r"\s+"),
     # Ultra-fast path for simple decimal degrees (most common case)
     "simple_decimal": re.compile(
         r"^\s*([+-]?\d+\.?\d*)\s*[\s,;:]+\s*([+-]?\d+\.?\d*)\s*$"
@@ -187,39 +167,83 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             self.xyButton.setIcon(self.xyIcon)
 
     def convertCoordinate(self, text):
-        """Parse coordinate text with ultra-fast path for simple decimal degrees."""
-        from .debug_logging import log_debug, log_error
+        """Parse coordinate text based on the current CRS mode.
 
+        - WGS84 mode: ultra-fast decimal path, then smart parser
+        - Project/Custom CRS mode: try projected coordinates, then smart parser
+        - Forced formats (MGRS, UTM, etc.): delegate to smart parser
+        - Smart Auto-Detect and other modes: delegate to smart parser
+        """
         text = text.strip() if text else ""
 
-        # ========== ULTRA-FAST PATH: Simple decimal degrees ==========
-        # Handles 90%+ of common coordinate inputs with a single regex match
-        m = COMPILED_REGEX["simple_decimal"].match(text)
-        if m:
-            try:
-                val1 = float(m.group(1))
-                val2 = float(m.group(2))
+        # ========== WGS84 ULTRA-FAST PATH ==========
+        # zoomToProjIsWgs84() returns True for: WGS84 mode, ProjectCRS when
+        # project CRS is EPSG:4326, and CustomCRS when custom CRS is EPSG:4326.
+        if self.settings.zoomToProjIsWgs84():
+            m = COMPILED_REGEX["simple_decimal"].match(text)
+            if m:
+                try:
+                    val1 = float(m.group(1))
+                    val2 = float(m.group(2))
 
-                # Apply coordinate order preference
+                    if self.settings.zoomToCoordOrder == CoordOrder.OrderYX:
+                        lat, lon = val1, val2  # Input is "lat, lon"
+                    else:
+                        lat, lon = val2, val1  # Input is "lon, lat"
+
+                    if -90 <= lat <= 90 and -180 <= lon <= 180:
+                        return (lat, lon, None, epsg4326)
+
+                    # Try swapped if original order failed validation
+                    if -90 <= lon <= 90 and -180 <= lat <= 180:
+                        return (lon, lat, None, epsg4326)
+
+                except (ValueError, TypeError):
+                    pass  # Fall through to smart parser
+            return self._parseWithSmartParser(text)
+
+        # ========== NON-WGS84 PATH ==========
+        # Check for forced formats — delegate directly to smart parser
+        if (
+            self.settings.zoomToProjIsMGRS()
+            or self.settings.zoomToProjIsPlusCodes()
+            or self.settings.zoomToProjIsStandardUtm()
+            or self.settings.zoomToProjIsGeohash()
+            or self.settings.zoomToProjIsH3()
+            or self.settings.zoomToProjIsMaidenhead()
+        ):
+            return self._parseWithSmartParser(text)
+
+        # ========== PROJECTED CRS PATH ==========
+        # Project CRS or Custom CRS mode (non-EPSG:4326): try parsing as two
+        # projected numbers. Falls through to smart parser on failure.
+        try:
+            coords = COMPILED_REGEX["coord_split"].split(text, 1)
+            if (
+                len(coords) >= 2
+                and self.is_number(coords[0])
+                and self.is_number(coords[1])
+            ):
                 if self.settings.zoomToCoordOrder == CoordOrder.OrderYX:
-                    lat, lon = val1, val2  # Input is "lat, lon"
+                    lat, lon = float(coords[0]), float(coords[1])
                 else:
-                    lat, lon = val2, val1  # Input is "lon, lat"
+                    lon, lat = float(coords[0]), float(coords[1])
+                if self.settings.zoomToProjIsProjectCRS():
+                    srcCrs = self.canvas.mapSettings().destinationCrs()
+                else:
+                    srcCrs = self.settings.zoomToCustomCRS()
+                return (lat, lon, None, srcCrs)
+        except (ValueError, TypeError):
+            pass
 
-                # Validate geographic ranges
-                if -90 <= lat <= 90 and -180 <= lon <= 180:
-                    return (lat, lon, None, epsg4326)
+        # Fall through to smart parser for non-numeric input (WKT, DMS, etc.)
+        # or unrecognized modes (Smart Auto-Detect, UPS, GEOREF, etc.)
+        return self._parseWithSmartParser(text)
 
-                # Try swapped if original order failed validation
-                if -90 <= lon <= 90 and -180 <= lat <= 180:
-                    return (lon, lat, None, epsg4326)
+    def _parseWithSmartParser(self, text):
+        """Delegate parsing to the smart parser service."""
+        from .debug_logging import log_debug, log_error
 
-            except (ValueError, TypeError):
-                pass  # Fall through to smart parser
-
-        # ========== SMART PARSER PATH: All other formats ==========
-        # The smart parser handles: WKT, GeoJSON, MGRS, UTM, UPS, Plus Codes,
-        # Geohash, H3, Maidenhead, GEOREF, DMS, and more
         log_debug("Using smart parser for complex format")
         try:
             result = parse_coordinate_with_service(
@@ -237,7 +261,7 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
 
         try:
             text = self.coordTxt.text().strip()
-            log_info(f"[v3.14.1] zoomToPressed: '{text}'")
+            log_info(f"zoomToPressed: '{text}'")
 
             result = self.convertCoordinate(text)
             if result is None:
@@ -254,8 +278,6 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             if srcCrs is None or not (hasattr(srcCrs, "isValid") and srcCrs.isValid()):
                 log_warning(f"Invalid CRS: {srcCrs}, assuming WGS84")
                 try:
-                    from qgis.core import QgsCoordinateReferenceSystem
-
                     srcCrs = QgsCoordinateReferenceSystem("EPSG:4326")
                     if not srcCrs.isValid():
                         srcCrs = None
@@ -298,8 +320,6 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
                 "LatLonTools",
                 Qgis.Critical,
             )
-            import traceback
-
             QgsMessageLog.logMessage(
                 f"ZoomToLatLon.zoomToPressed: Traceback: {traceback.format_exc()}",
                 "LatLonTools",
