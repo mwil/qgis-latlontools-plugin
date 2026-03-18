@@ -215,26 +215,33 @@ class ZoomToLatLon(QDockWidget, FORM_CLASS):
             return self._parseWithSmartParser(text)
 
         # ========== PROJECTED CRS PATH ==========
-        # Project CRS or Custom CRS mode (non-EPSG:4326): try parsing as two
-        # projected numbers. Falls through to smart parser on failure.
-        try:
-            coords = COMPILED_REGEX["coord_split"].split(text, 1)
-            if (
-                len(coords) >= 2
-                and self.is_number(coords[0])
-                and self.is_number(coords[1])
-            ):
-                if self.settings.zoomToCoordOrder == CoordOrder.OrderYX:
-                    lat, lon = float(coords[0]), float(coords[1])
-                else:
-                    lon, lat = float(coords[0]), float(coords[1])
-                if self.settings.zoomToProjIsProjectCRS():
-                    srcCrs = self.canvas.mapSettings().destinationCrs()
-                else:
-                    srcCrs = self.settings.zoomToCustomCRS()
-                return (lat, lon, None, srcCrs)
-        except (ValueError, TypeError):
-            pass
+        # Only try projected coordinate parsing when explicitly in Project CRS
+        # or Custom CRS mode. Other modes (Smart Auto-Detect, UPS, GEOREF)
+        # fall through to the smart parser below.
+        is_projected_mode = (
+            self.settings.zoomToProjIsProjectCRS()
+            or self.settings.zoomToProjection == self.settings.ProjectionTypeCustomCRS
+        )
+
+        if is_projected_mode:
+            try:
+                coords = COMPILED_REGEX["coord_split"].split(text, 1)
+                if (
+                    len(coords) >= 2
+                    and self.is_number(coords[0])
+                    and self.is_number(coords[1])
+                ):
+                    if self.settings.zoomToCoordOrder == CoordOrder.OrderYX:
+                        lat, lon = float(coords[0]), float(coords[1])
+                    else:
+                        lon, lat = float(coords[0]), float(coords[1])
+                    if self.settings.zoomToProjIsProjectCRS():
+                        srcCrs = self.canvas.mapSettings().destinationCrs()
+                    else:
+                        srcCrs = self.settings.zoomToCustomCRS()
+                    return (lat, lon, None, srcCrs)
+            except (ValueError, TypeError):
+                pass
 
         # Fall through to smart parser for non-numeric input (WKT, DMS, etc.)
         # or unrecognized modes (Smart Auto-Detect, UPS, GEOREF, etc.)
