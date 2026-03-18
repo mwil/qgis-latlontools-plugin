@@ -122,46 +122,44 @@ class FastCoordinateDetector:
         if INVALID_PATTERNS["obviously_projected"].match(text_clean):
             return None
 
-        # Pattern detection in order of specificity and frequency
+        # Pattern detection in order of FREQUENCY (most common first)
+        # This provides early exit for the 90% case (decimal degrees)
         format_checks = [
-            # Ultra-specific signatures first (no false positives)
-            ("wkb_hex", COORDINATE_PATTERNS["wkb_hex"]),
-            ("ewkt_srid", COORDINATE_PATTERNS["ewkt_srid"]),
-            ("geojson", COORDINATE_PATTERNS["geojson"]),
-            ("wkt_point", COORDINATE_PATTERNS["wkt_point"]),
-            # Structured formats (low false positive rate)
-            ("h3", COORDINATE_PATTERNS["h3"]),
-            ("plus_codes", COORDINATE_PATTERNS["plus_codes"]),
-            ("mgrs", COORDINATE_PATTERNS["mgrs"]),
-            ("utm", COORDINATE_PATTERNS["utm"]),
-            ("ups", COORDINATE_PATTERNS["ups"]),
-            ("georef", COORDINATE_PATTERNS["georef"]),
-            ("maidenhead", COORDINATE_PATTERNS["maidenhead"]),
-            # Medium specificity
-            ("geohash", COORDINATE_PATTERNS["geohash"]),
-            # High frequency patterns last (to avoid false matches)
+            # TIER 1: MOST COMMON - decimal degrees (~90% of user inputs)
+            ("decimal_degrees", COORDINATE_PATTERNS["decimal_degrees"]),
+            # TIER 2: COMMON - DMS formats (~8% of user inputs)
             ("dms_symbols", COORDINATE_PATTERNS["dms_symbols"]),
             ("dms_letters", COORDINATE_PATTERNS["dms_letters"]),
-            ("decimal_degrees", COORDINATE_PATTERNS["decimal_degrees"]),
+            # TIER 3: OCCASIONAL - structured formats (~2% of user inputs)
+            ("wkt_point", COORDINATE_PATTERNS["wkt_point"]),
+            ("ewkt_srid", COORDINATE_PATTERNS["ewkt_srid"]),
+            ("geojson", COORDINATE_PATTERNS["geojson"]),
+            ("utm", COORDINATE_PATTERNS["utm"]),
+            ("plus_codes", COORDINATE_PATTERNS["plus_codes"]),
+            ("geohash", COORDINATE_PATTERNS["geohash"]),
+            # TIER 4: RARE - specialized formats
+            ("wkb_hex", COORDINATE_PATTERNS["wkb_hex"]),
+            ("mgrs", COORDINATE_PATTERNS["mgrs"]),
+            ("ups", COORDINATE_PATTERNS["ups"]),
+            ("h3", COORDINATE_PATTERNS["h3"]),
+            ("georef", COORDINATE_PATTERNS["georef"]),
+            ("maidenhead", COORDINATE_PATTERNS["maidenhead"]),
         ]
 
         for format_name, pattern in format_checks:
             if pattern.search(text_clean):
                 self.detection_stats["hits"] += 1
                 self.detection_stats["fast_routes"] += 1
-                QgsMessageLog.logMessage(
-                    f"FastDetector: FAST ROUTE to {format_name} for '{text[:50]}'",
-                    "LatLonTools",
-                    Qgis.Info,
-                )
+                # Use debug logging (no QGIS import needed)
+                from .debug_logging import log_debug
+
+                log_debug(f"FastDetector: matched {format_name}")
                 return format_name
 
         self.detection_stats["misses"] += 1
-        QgsMessageLog.logMessage(
-            f"FastDetector: No pattern match for '{text[:50]}'",
-            "LatLonTools",
-            Qgis.Info,
-        )
+        from .debug_logging import log_debug
+
+        log_debug("FastDetector: no match")
         return None
 
     def get_detection_stats(self):
@@ -191,13 +189,9 @@ class OptimizedCoordinateParser:
     def parse(self, text: str):
         """
         High-performance parsing with fast format detection
-
-        Performance optimizations:
-        1. Fast pattern matching to route directly to right parser
-        2. Early validation to avoid expensive operations
-        3. Lazy loading of parser strategies
-        4. Caching of successful patterns
         """
+        from .debug_logging import log_debug
+
         text_clean = text.strip()
 
         # Fast format detection
@@ -207,19 +201,11 @@ class OptimizedCoordinateParser:
             # Route directly to appropriate parser
             result = self._parse_with_format(text_clean, detected_format)
             if result:
-                QgsMessageLog.logMessage(
-                    f"OptimizedParser: SUCCESS with fast route {detected_format}",
-                    "LatLonTools",
-                    Qgis.Info,
-                )
+                log_debug(f"OptimizedParser: SUCCESS with {detected_format}")
                 return result
 
         # Fallback to comprehensive parsing if fast detection fails
-        QgsMessageLog.logMessage(
-            "OptimizedParser: Fast detection failed, using comprehensive fallback",
-            "LatLonTools",
-            Qgis.Info,
-        )
+        log_debug("OptimizedParser: using comprehensive fallback")
         return self.smart_parser.parse(text_clean)
 
     def _parse_with_format(self, text: str, format_name: str):

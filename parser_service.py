@@ -174,43 +174,22 @@ class CoordinateParserService:
                 "smart_parser", "SmartCoordinateParser", settings, iface
             )
 
-        # Create optimized parser wrapper (lazy initialization)
         self._optimized_parser = None
-
-        QgsMessageLog.logMessage(
-            "CoordinateParserService: Service initialized with performance optimizations",
-            "LatLonTools",
-            Qgis.Info,
-        )
 
     def parse_coordinate_with_logging(self, text: str, component_name: str = "Unknown"):
         """
         Parse coordinate with consistent logging and error handling
         Uses performance-optimized parser with fast format detection
-
-        Args:
-            text: Input coordinate text
-            component_name: Name of UI component for logging
-
-        Returns:
-            (success: bool, result: tuple or None, error_msg: str or None)
-            Where result is (lat, lon, bounds, source_crs) if success=True
         """
+        from .debug_logging import log_debug, log_error, log_warning
+
         original_text = text.strip()
-        QgsMessageLog.logMessage(
-            f"ParserService.parse_coordinate_with_logging: {component_name} parsing '{original_text}'",
-            "LatLonTools",
-            Qgis.Info,
-        )
+        log_debug(f"ParserService: {component_name} parsing '{original_text}'")
 
         try:
             # Initialize optimized parser on first use (lazy loading)
             if self._optimized_parser is None:
-                QgsMessageLog.logMessage(
-                    "ParserService: Initializing OptimizedCoordinateParser",
-                    "LatLonTools",
-                    Qgis.Info,
-                )
+                log_debug("ParserService: Initializing OptimizedCoordinateParser")
 
                 # Record loading statistics if this is the first load
                 is_first_load = not self._parser_loader.is_loaded()
@@ -227,41 +206,24 @@ class CoordinateParserService:
 
                 # Initialize the optimized parser (which wraps the smart parser)
                 self._optimized_parser = OptimizedCoordinateParser(smart_parser)
-                QgsMessageLog.logMessage(
-                    "ParserService: OptimizedCoordinateParser initialized",
-                    "LatLonTools",
-                    Qgis.Info,
-                )
 
             # Use optimized parser for up to 10x performance improvement
-            start_parse_time = time.time()
             result = self._optimized_parser.parse(text)
-            parse_time = time.time() - start_parse_time
 
             if result:
                 lat, lon, bounds, source_crs = result
-                QgsMessageLog.logMessage(
-                    f"ParserService.parse_coordinate_with_logging: {component_name} SUCCESS - lat={lat}, lon={lon}, crs={source_crs} (parsed in {parse_time * 1000:.1f}ms)",
-                    "LatLonTools",
-                    Qgis.Info,
+                log_debug(
+                    f"ParserService: {component_name} SUCCESS - lat={lat}, lon={lon}"
                 )
                 return True, result, None
             else:
-                msg = f"{component_name}: Optimized parser failed - coordinate not recognized"
-                QgsMessageLog.logMessage(
-                    f"ParserService.parse_coordinate_with_logging: {msg}",
-                    "LatLonTools",
-                    Qgis.Warning,
-                )
+                msg = f"{component_name}: coordinate not recognized"
+                log_warning(f"ParserService: {msg}")
                 return False, None, msg
 
         except Exception as e:
             error_msg = f"{component_name}: Parsing error - {e}"
-            QgsMessageLog.logMessage(
-                f"ParserService.parse_coordinate_with_logging: ERROR - {error_msg}",
-                "LatLonTools",
-                Qgis.Critical,
-            )
+            log_error(f"ParserService: {error_msg}")
             return False, None, error_msg
 
     def parse_coordinate_simple(self, text: str, component_name: str = "Unknown"):
@@ -422,52 +384,10 @@ def parse_coordinate_with_service(
     """
     Standalone function for coordinate parsing using service layer.
     Useful for components that can't inherit from CoordinateParserMixin.
-
-    **Primary Use Cases:**
-    - coordinateConverter.py: Called from commitWgs84() method
-    - digitizer.py: Called from addFeature() for coordinate validation
-    - multizoom.py: Called from addSingleCoord() for multi-zoom functionality
-    - zoomToLatLon.py: Called from convertCoordinate() with legacy fallbacks
-
-    **Integration Pattern:**
-        from .parser_service import parse_coordinate_with_service
-
-        def my_parsing_method(self, coordinate_text):
-            result = parse_coordinate_with_service(
-                coordinate_text,
-                "MyComponentName",
-                self.settings,
-                self.iface,
-                self.legacy_parser_if_needed  # Optional fallback
-            )
-            if result:
-                lat, lon, bounds, source_crs = result
-                # Process coordinates
-            else:
-                # Handle parsing failure
-
-    **Error Handling:**
-    - Returns None on all failure cases
-    - Comprehensive logging with component identification
-    - Automatic fallback to legacy parsing if provided
-
-    **Performance:**
-    - Uses singleton service for efficiency
-    - Lazy loading prevents startup performance impact
-    - Automatic performance monitoring
-
-    Args:
-        text: Input coordinate text
-        component_name: Name of UI component for logging
-        settings: QGIS settings object
-        iface: QGIS interface object
-        legacy_parser_func: Optional legacy parsing function for fallback
-
-    Returns:
-        (lat, lon, bounds, source_crs) or None
     """
+    from .debug_logging import log_debug, log_warning, log_error
+
     # Get or create service (singleton pattern ensures efficiency)
-    # This will reuse existing service or create new one if first call
     service = CoordinateParserService.get_instance(settings, iface)
     success, result, error_msg = service.parse_coordinate_with_logging(
         text, component_name
@@ -477,30 +397,22 @@ def parse_coordinate_with_service(
         return result
     elif legacy_parser_func:
         try:
-            QgsMessageLog.logMessage(
-                f"parse_coordinate_with_service: {component_name} trying legacy fallback...",
-                "LatLonTools",
-                Qgis.Info,
+            log_debug(
+                f"parse_coordinate_with_service: {component_name} trying legacy fallback"
             )
             legacy_result = legacy_parser_func(text)
             if legacy_result:
-                QgsMessageLog.logMessage(
-                    f"parse_coordinate_with_service: {component_name} legacy fallback SUCCESS",
-                    "LatLonTools",
-                    Qgis.Info,
+                log_debug(
+                    f"parse_coordinate_with_service: {component_name} legacy fallback SUCCESS"
                 )
                 return legacy_result
             else:
-                QgsMessageLog.logMessage(
-                    f"parse_coordinate_with_service: {component_name} legacy fallback also failed",
-                    "LatLonTools",
-                    Qgis.Warning,
+                log_warning(
+                    f"parse_coordinate_with_service: {component_name} legacy fallback failed"
                 )
         except Exception as e:
-            QgsMessageLog.logMessage(
-                f"parse_coordinate_with_service: {component_name} legacy fallback exception - {e}",
-                "LatLonTools",
-                Qgis.Critical,
+            log_error(
+                f"parse_coordinate_with_service: {component_name} legacy fallback exception - {e}"
             )
 
     return None

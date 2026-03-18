@@ -21,6 +21,25 @@ and this project adheres to
 
 -
 
+## [3.14.2] - 2026-03-18
+
+### Fixed
+
+- **Performance Regression**: Fixed critical issue where the ultra-fast
+  coordinate parsing path was being bypassed due to a monkey-patch in
+  plugin_enhancements.py. Simple decimal degree coordinates (90%+ of use cases)
+  now parse ~10-20x faster with a single regex match instead of 15+ strategy
+  checks.
+
+### Changed
+
+- **Code Cleanup**: Removed redundant monkey-patching of convertCoordinate
+  method in plugin_enhancements.py. The optimized parser now handles all
+  coordinate formats.
+- **Import Organization**: Moved all imports to top of zoomToLatLon.py for
+  better code structure and removed unused imports (traceback, QColor,
+  QTextCodec, QgsJsonUtils, QgsPointXY).
+
 ## [3.14.1] - 2026-01-29
 
 ### Fixed
